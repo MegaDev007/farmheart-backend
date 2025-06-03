@@ -1,0 +1,17 @@
+{"code":"28P01","file":"auth.c","length":110,"level":"error","line":"323","message":"Database connection test failed: password authentication failed for user \"farmheart_user\"","name":"error","routine":"auth_failed","service":"farmheart-api","severity":"FATAL","stack":"error: password authentication failed for user \"farmheart_user\"\n    at /home/ubuntu/farmheart-backend/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async testConnection (/home/ubuntu/farmheart-backend/config/database.js:30:24)\n    at async startServer (/home/ubuntu/farmheart-backend/server.js:168:9)","timestamp":"2025-06-03T23:33:13.774Z"}
+{"level":"info","message":"Connected to PostgreSQL database","service":"farmheart-api","timestamp":"2025-06-03T23:35:02.046Z"}
+{"level":"info","message":"Database connection test successful:","service":"farmheart-api","timestamp":"2025-06-03T23:35:02.057Z"}
+{"level":"info","message":"Database connection established","service":"farmheart-api","timestamp":"2025-06-03T23:35:02.059Z"}
+{"level":"info","message":"Scheduled tasks initialized","service":"farmheart-api","timestamp":"2025-06-03T23:35:02.059Z"}
+{"level":"info","message":"Farmheart API server running on port 5000","service":"farmheart-api","timestamp":"2025-06-03T23:35:02.063Z"}
+{"level":"info","message":"Environment: development","service":"farmheart-api","timestamp":"2025-06-03T23:35:02.064Z"}
+{"level":"info","message":"API Documentation: http://localhost:5000/api","service":"farmheart-api","timestamp":"2025-06-03T23:35:02.064Z"}
+{"ip":"::ffff:127.0.0.1","level":"info","message":"Request received","method":"GET","service":"farmheart-api","timestamp":"2025-06-03T23:35:10.986Z","url":"/","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"}
+{"ip":"::ffff:127.0.0.1","level":"info","message":"Request received","method":"GET","service":"farmheart-api","timestamp":"2025-06-03T23:35:11.492Z","url":"/favicon.ico","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"}
+{"level":"info","message":"Connected to PostgreSQL database","service":"farmheart-api","timestamp":"2025-06-03T23:40:37.895Z"}
+{"level":"info","message":"Database connection test successful:","service":"farmheart-api","timestamp":"2025-06-03T23:40:37.903Z"}
+{"level":"info","message":"Database connection established","service":"farmheart-api","timestamp":"2025-06-03T23:40:37.904Z"}
+{"level":"info","message":"Scheduled tasks initialized","service":"farmheart-api","timestamp":"2025-06-03T23:40:37.904Z"}
+{"level":"info","message":"Farmheart API server running on port 5000","service":"farmheart-api","timestamp":"2025-06-03T23:40:37.908Z"}
+{"level":"info","message":"Environment: development","service":"farmheart-api","timestamp":"2025-06-03T23:40:37.908Z"}
+{"level":"info","message":"API Documentation: http://localhost:5000/api","service":"farmheart-api","timestamp":"2025-06-03T23:40:37.908Z"}
