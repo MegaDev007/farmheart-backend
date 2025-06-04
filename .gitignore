@@ -1,0 +1,244 @@
+# Farmheart Backend .gitignore
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
+.grunt
+
+# Bower dependency directory (https://bower.io/)
+bower_components
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons (https://nodejs.org/api/addons.html)
+build/Release
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# TypeScript v1 declaration files
+typings/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+.env.test
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Gatsby files
+.cache/
+public
+
+# Vuepress build output
+.vuepress/dist
+
+# Serverless directories
+.serverless/
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Mac OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.sublime-project
+.sublime-workspace
+*.sublime-workspace
+*.sublime-project
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+*.temp
+
+# SSL certificates (if storing locally)
+*.pem
+*.key
+*.crt
+*.csr
+
+# Docker
+Dockerfile.local
+docker-compose.override.yml
+.dockerignore
+
+# PM2
+ecosystem.config.js
+
+# Testing
+test-results/
+coverage/
+jest-coverage/
+
+# Build artifacts
+build/
+dist/
+lib/
+out/
+
+# Temporary files
+tmp/
+temp/
+uploads/
+
+# Application specific
+public/uploads/
+storage/
+cache/
+
+# Documentation build
+docs/build/
+docs/_build/
+
+# Local development
+.local/
+dev-data/
+sandbox/
+
+# Secrets and keys
+secrets/
+keys/
+certificates/
+*.p12
+*.pfx
+
+# Database dumps
+*.sql.gz
+*.dump
+database-backup/
+
+# Application logs
+app.log
+error.log
+access.log
+debug.log
+
+# Monitoring and analytics
+newrelic_agent.log
+.newrelic.yml
+
+# Local config overrides
+config/local.js
+config/local.json
+local.config.js
+
+# Farmheart specific ignores
+# Add any project-specific files here
+sl-scripts/private/
+backups/
+exports/
+user-data/
