@@ -1,34 +1,66 @@
-
 const AuthService = require('../services/authService');
+const VerificationService = require('../services/verificationService');
 const logger = require('../utils/logger');
+const User = require('../models/user');
+
 
 class AuthController {
+
+    static async validateSlUsername(req, res, next) {
+        try {
+            const { slUsername, email } = req.body;
+            
+            const result = await AuthService.validateSlUsername(slUsername, email);
+            
+            if (!result.isValid) {
+                return res.status(400).json({
+                    success: false,
+                    error: result.message
+                });
+            }
+
+            res.json({
+                success: true,
+                message: result.message
+            });
+
+        } catch (error) {
+            next(error);
+        }
+    }
+
     static async register(req, res, next) {
         try {
             const { slUsername, password, email } = req.body;
-            const ipAddress = req.ip;
-
-            const result = await AuthService.register(slUsername, password, email);
-
+            
+            // Check if user already exists
+            const existingUser = await User.findBySlUsername(slUsername);
+            if (existingUser) {
+                return res.status(409).json({
+                    success: false,
+                    error: 'User with this SL username already exists'
+                });
+            }
+            
+            // Create user (unverified)
+            const user = await User.create({ slUsername, password, email });
+            
+            // Generate verification code in Redis
+            const verification = await VerificationService.generateVerificationCode(slUsername, email);
+            console.log("verification", verification);
+            
             res.status(201).json({
                 success: true,
                 message: 'Account created successfully. Please verify your SL identity.',
                 data: {
-                    userId: result.user.id,
-                    slUsername: result.user.slUsername,
-                    verificationCode: result.verificationCode,
-                    expiresAt: result.expiresAt,
-                    instructions: 'Go to your SL account and send this verification code to our in-world verification system within 30 minutes.'
+                    userId: user.id,
+                    slUsername: user.slUsername,
+                    verificationCode: verification.code,
+                    expiresAt: verification.expiresAt
                 }
             });
-
+            
         } catch (error) {
-            if (error.message.includes('already exists')) {
-                return res.status(409).json({
-                    success: false,
-                    error: error.message
-                });
-            }
             next(error);
         }
     }
@@ -67,16 +99,24 @@ class AuthController {
     static async verifySL(req, res, next) {
         try {
             const { slUsername, verificationCode, slUuid, slObjectKey } = req.body;
-            const ipAddress = req.ip;
 
-            const result = await AuthService.verifySLIdentity(
-                slUsername, 
+            // Extract username from full SL name (e.g., "byddev Resident" -> "byddev")
+            const username = slUsername.split(' ')[0];
+            
+            if (!username) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid SL username format'
+                });
+            }
+            
+            const result = await VerificationService.verifyCode(
+                username, 
                 verificationCode, 
                 slUuid, 
-                slObjectKey, 
-                ipAddress
+                slObjectKey
             );
-
+            
             res.json({
                 success: true,
                 message: result.message,
@@ -84,9 +124,11 @@ class AuthController {
                     user: result.user
                 }
             });
-
+            
         } catch (error) {
-            if (error.message.includes('Invalid or expired')) {
+            if (error.message.includes('Invalid') || 
+                error.message.includes('expired') ||
+                error.message.includes('not match')) {
                 return res.status(400).json({
                     success: false,
                     error: error.message
@@ -217,6 +259,107 @@ class AuthController {
                 authenticated: true
             }
         });
+    }
+
+    static async updateVerificationCode(req, res, next) {
+        try {
+            const { slUsername } = req.body;
+            const User = require('../models/user');
+            const { generateVerificationCode } = require('../utils/generators');
+            const authConfig = require('../config/auth');
+
+            // Find user by username
+            const user = await User.findBySlUsername(slUsername);
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'User not found'
+                });
+            }
+            if (user.isVerified) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'User already verified'
+                });
+            }
+
+            // Generate and set new code
+            const newCode = generateVerificationCode();
+            const { expiresAt } = await user.setVerificationCode(newCode, authConfig.verification.codeExpiresMinutes);
+
+            res.json({
+                success: true,
+                message: 'Verification code updated',
+                data: {
+                    slUsername: user.slUsername,
+                    verificationCode: newCode,
+                    expiresAt
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    // Check verification status for frontend polling
+    static async checkVerification(req, res, next) {
+        try {
+            const { slUsername } = req.body;
+            
+            if (!slUsername) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'SL username is required'
+                });
+            }
+            
+            const status = await VerificationService.checkVerificationStatus(slUsername);
+            
+            res.json({
+                success: true,
+                data: status
+            });
+            
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async refreshVerificationCode(req, res, next) {
+        try {
+            logger.info('refresh-verification-code handler called', { body: req.body });
+            const { email } = req.body;
+            
+            if (!email) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Email is required'
+                });
+            }
+            
+            const verification = await VerificationService.refreshVerificationCode(email);
+            
+            logger.info('Verification code generated', { code: verification.code, user: req.body.user });
+            res.json({
+                success: true,
+                message: 'Verification code refreshed successfully',
+                data: {
+                    verificationCode: verification.code,
+                    expiresAt: verification.expiresAt
+                }
+            });
+            
+        } catch (error) {
+            logger.error('Error in refresh-verification-code:', error);
+            if (error.message.includes('not found') || 
+                error.message.includes('already verified')) {
+                return res.status(400).json({
+                    success: false,
+                    error: error.message
+                });
+            }
+            next(error);
+        }
     }
 }
 

@@ -38,6 +38,15 @@ class User {
         return result.rows.length > 0 ? new User(result.rows[0]) : null;
     }
 
+    static async findByEmail(email) {
+        const result = await pool.query(
+            'SELECT * FROM users WHERE email = $1',
+            [email]
+        );
+
+        return result.rows.length > 0 ? new User(result.rows[0]) : null;
+    }
+
     static async findById(id) {
         const result = await pool.query(
             'SELECT * FROM users WHERE id = $1',
@@ -47,39 +56,37 @@ class User {
         return result.rows.length > 0 ? new User(result.rows[0]) : null;
     }
 
-    static async findByVerificationCode(slUsername, verificationCode) {
-        const result = await pool.query(
-            `SELECT * FROM users 
-             WHERE sl_username = $1 
-             AND sl_verification_code = $2 
-             AND sl_verification_expires > NOW() 
-             AND is_verified = false`,
-            [slUsername, verificationCode]
-        );
+    // static async findByVerificationCode(slUsername, verificationCode) {
+    //     const result = await pool.query(
+    //         `SELECT * FROM users 
+    //          WHERE sl_username = $1 
+    //          AND sl_verification_code = $2 
+    //          AND sl_verification_expires > NOW() 
+    //          AND is_verified = false`,
+    //         [slUsername, verificationCode]
+    //     );
 
-        return result.rows.length > 0 ? new User(result.rows[0]) : null;
-    }
+    //     return result.rows.length > 0 ? new User(result.rows[0]) : null;
+    // }
 
-    async setVerificationCode(code, expiresMinutes = 30) {
-        const expiresAt = new Date(Date.now() + expiresMinutes * 60 * 1000);
+    // async setVerificationCode(code, expiresMinutes = 30) {
+    //     const expiresAt = new Date(Date.now() + expiresMinutes * 60 * 1000);
         
-        await pool.query(
-            `UPDATE users 
-             SET sl_verification_code = $1, sl_verification_expires = $2, updated_at = NOW()
-             WHERE id = $3`,
-            [code, expiresAt, this.id]
-        );
+    //     await pool.query(
+    //         `UPDATE users 
+    //          SET sl_verification_code = $1, sl_verification_expires = $2, updated_at = NOW()
+    //          WHERE id = $3`,
+    //         [code, expiresAt, this.id]
+    //     );
 
-        return { code, expiresAt };
-    }
+    //     return { code, expiresAt };
+    // }
 
     async verify(slUuid) {
         const result = await pool.query(
             `UPDATE users 
              SET is_verified = true, 
                  sl_uuid = $1, 
-                 sl_verification_code = NULL, 
-                 sl_verification_expires = NULL,
                  verified_at = NOW(),
                  updated_at = NOW()
              WHERE id = $2

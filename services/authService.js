@@ -7,6 +7,58 @@ const logger = require('../utils/logger');
 const { generateVerificationCode } = require('../utils/generators');
 
 class AuthService {
+
+    static async validateSlUsername(slUsername, email) {
+        try {
+            // SL usernames must be between 2 and 32 characters
+            if (!slUsername || slUsername.length < 2 || slUsername.length > 32) {
+                throw new Error('SL username must be between 2 and 32 characters');
+            }
+
+            // SL usernames can only contain letters and numbers
+            if (!/^[a-zA-Z0-9]+$/.test(slUsername)) {
+                throw new Error('SL username can only contain letters and numbers');
+            }
+
+            // SL username cannot be only numbers
+            if (/^\d+$/.test(slUsername)) {
+                throw new Error('SL username cannot contain only numbers');
+            }
+
+            // Check if username is already taken
+            const existingUser = await User.findBySlUsername(slUsername);
+            if (existingUser) {
+                throw new Error('This SL username is already taken');
+            }
+
+            // Check if email is already registered (if email is provided)
+            if (email) {
+                const existingEmail = await User.findByEmail(email);
+                if (existingEmail) {
+                    throw new Error('This email is already registered');
+                }
+            }
+
+            return {
+                isValid: true,
+                message: 'SL username and email are valid'
+            };
+
+        } catch (error) {
+            logger.error('Validation error', { 
+                error: error.message, 
+                slUsername,
+                email 
+            });
+            
+            return {
+                isValid: false,
+                message: error.message
+            };
+        }
+    }
+
+    // Register a new user
     static async register(slUsername, password, email) {
         try {
             // Check if user already exists
@@ -127,57 +179,56 @@ class AuthService {
         };
     }
 
-    static async verifySLIdentity(slUsername, verificationCode, slUuid, slObjectKey, ipAddress) {
-        try {
-            // Find user with valid verification code
-            const user = await User.findByVerificationCode(slUsername, verificationCode);
-            if (!user) {
-                throw new Error('Invalid or expired verification code');
-            }
+    // static async verifySLIdentity(slUsername, verificationCode, slUuid, ipAddress) {
+    //     try {
+    //         // Find user with valid verification code
+    //         const user = await User.findByVerificationCode(slUsername, verificationCode);
+    //         if (!user) {
+    //             throw new Error('Invalid or expired verification code');
+    //         }
 
-            // Verify user
-            await user.verify(slUuid);
+    //         // Verify user
+    //         await user.verify(slUuid);
 
-            // Update verification attempt as successful
-            await pool.query(
-                `UPDATE sl_verification_attempts 
-                 SET is_successful = true, 
-                     verified_at = NOW(), 
-                     sl_uuid = $1,
-                     sl_object_key = $2,
-                     ip_address = $3
-                 WHERE sl_username = $4 AND verification_code = $5 AND is_successful = false`,
-                [slUuid, slObjectKey, ipAddress, slUsername, verificationCode]
-            );
+    //         // Update verification attempt as successful
+    //         await pool.query(
+    //             `UPDATE sl_verification_attempts 
+    //              SET is_successful = true, 
+    //                  verified_at = NOW(), 
+    //                  sl_uuid = $1,
+    //                  ip_address = $2
+    //              WHERE sl_username = $3 AND verification_code = $4 AND is_successful = false`,
+    //             [slUuid, ipAddress, slUsername, verificationCode]
+    //         );
 
-            logger.info('SL identity verified successfully', { 
-                userId: user.id, 
-                slUsername: user.slUsername,
-                slUuid 
-            });
+    //         logger.info('SL identity verified successfully', { 
+    //             userId: user.id, 
+    //             slUsername: user.slUsername,
+    //             slUuid 
+    //         });
 
-            return {
-                user: user.toJSON(),
-                message: 'SL identity verified successfully. You can now login to the website.'
-            };
+    //         return {
+    //             user: user.toJSON(),
+    //             message: 'SL identity verified successfully. You can now login to the website.'
+    //         };
 
-        } catch (error) {
-            // Log failed attempt
-            await pool.query(
-                `INSERT INTO sl_verification_attempts 
-                 (sl_username, verification_code, sl_uuid, ip_address, is_successful) 
-                 VALUES ($1, $2, $3, $4, false)`,
-                [slUsername, verificationCode, slUuid, ipAddress]
-            );
+    //     } catch (error) {
+    //         // Log failed attempt
+    //         await pool.query(
+    //             `INSERT INTO sl_verification_attempts 
+    //              (sl_username, verification_code, sl_uuid, ip_address, is_successful) 
+    //              VALUES ($1, $2, $3, $4, false)`,
+    //             [slUsername, verificationCode, slUuid, ipAddress]
+    //         );
 
-            logger.error('SL verification error', { 
-                error: error.message, 
-                slUsername, 
-                verificationCode 
-            });
-            throw error;
-        }
-    }
+    //         logger.error('SL verification error', { 
+    //             error: error.message, 
+    //             slUsername, 
+    //             verificationCode 
+    //         });
+    //         throw error;
+    //     }
+    // }
 
     static async logout(sessionToken) {
         try {

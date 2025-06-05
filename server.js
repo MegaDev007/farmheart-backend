@@ -10,6 +10,7 @@ const fs = require('fs');
 
 // Import configurations and utilities
 const { testConnection } = require('./config/database');
+const { connectRedis, redisClient, testRedisAvailability } = require('./config/redis'); // FIXED: Import all functions
 const logger = require('./utils/logger');
 const errorHandler = require('./middleware/errorHandler');
 const { generalLimiter, speedLimiter } = require('./middleware/rateLimiting');
@@ -19,6 +20,7 @@ const routes = require('./routes');
 
 // Import services for scheduled tasks
 const AuthService = require('./services/authService');
+const VerificationService = require('./services/verificationService'); // ADD: Verification service
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -44,20 +46,7 @@ app.use(helmet({
 
 // CORS configuration
 const corsOptions = {
-    origin: function (origin, callback) {
-        const allowedOrigins = process.env.ALLOWED_ORIGINS 
-            ? process.env.ALLOWED_ORIGINS.split(',') 
-            : ['http://localhost:3000'];
-        
-        // Allow requests with no origin (mobile apps, etc.)
-        if (!origin) return callback(null, true);
-        
-        if (allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
+    origin: '*',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -86,13 +75,26 @@ app.use((req, res, next) => {
 });
 
 // Health check endpoint (before rate limiting)
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+    // ADD: Include Redis status in health check
+    let redisStatus = 'disconnected';
+    try {
+        await redisClient.ping();
+        redisStatus = 'connected';
+    } catch (error) {
+        redisStatus = 'error';
+    }
+
     res.json({
         success: true,
         message: 'Farmheart API is running',
         timestamp: new Date().toISOString(),
         version: '1.0.0',
-        environment: process.env.NODE_ENV
+        environment: process.env.NODE_ENV,
+        services: {
+            database: 'connected', // Assume connected if we reach here
+            redis: redisStatus
+        }
     });
 });
 
@@ -127,13 +129,26 @@ process.on('SIGINT', gracefulShutdown);
 function gracefulShutdown(signal) {
     logger.info(`Received ${signal}. Starting graceful shutdown...`);
     
-    server.close(() => {
+    global.server.close(() => {
         logger.info('HTTP server closed.');
         
-        // Close database connections
-        require('./config/database').pool.end(() => {
-            logger.info('Database connections closed.');
-            process.exit(0);
+        // ADD: Close Redis connection
+        redisClient.quit().then(() => {
+            logger.info('Redis connection closed.');
+            
+            // Close database connections
+            require('./config/database').pool.end(() => {
+                logger.info('Database connections closed.');
+                process.exit(0);
+            });
+        }).catch((error) => {
+            logger.error('Error closing Redis connection:', error);
+            
+            // Still close database
+            require('./config/database').pool.end(() => {
+                logger.info('Database connections closed.');
+                process.exit(0);
+            });
         });
     });
 
@@ -144,7 +159,7 @@ function gracefulShutdown(signal) {
     }, 30000);
 }
 
-// Scheduled tasks
+// UPDATED: Scheduled tasks with Redis cleanup
 const setupScheduledTasks = () => {
     // Clean up expired sessions every hour
     setInterval(async () => {
@@ -158,24 +173,56 @@ const setupScheduledTasks = () => {
         }
     }, 60 * 60 * 1000); // 1 hour
 
+    // ADD: Clean up expired verification codes every 15 minutes
+    setInterval(async () => {
+        try {
+            const result = await VerificationService.cleanupExpiredCodes();
+            if (result.expiredCount > 0) {
+                logger.info(`Verification cleanup: ${result.totalKeys} total keys, ${result.expiredCount} expired`);
+            }
+        } catch (error) {
+            logger.error('Error cleaning up verification codes:', error);
+        }
+    }, 15 * 60 * 1000); // 15 minutes
+
     logger.info('Scheduled tasks initialized');
 };
 
-// Start server
+// UPDATED: Start server with better Redis error handling
 const startServer = async () => {
     try {
         // Test database connection
         await testConnection();
-        logger.info('Database connection established');
+        logger.info('PostgreSQL connection established');
+
+        // Test Redis availability first
+        const redisAvailable = await testRedisAvailability();
+        
+        if (redisAvailable) {
+            try {
+                await connectRedis();
+                logger.info('Redis connection established successfully');
+            } catch (redisError) {
+                logger.error('Redis connection failed but server available:', redisError.message);
+                logger.warn('Starting server without Redis - verification features will be limited');
+            }
+        } else {
+            logger.warn('Redis server not available - starting without Redis');
+            logger.info('To enable verification features, please install and start Redis:');
+            logger.info('  Ubuntu/Debian: sudo apt install redis-server && sudo systemctl start redis-server');
+            logger.info('  macOS: brew install redis && brew services start redis');
+            logger.info('  Docker: docker run -d -p 6379:6379 --name farmheart-redis redis:alpine');
+        }
 
         // Setup scheduled tasks
         setupScheduledTasks();
 
         // Start HTTP server
-        const server = app.listen(PORT, () => {
+        const server = app.listen(PORT, '0.0.0.0', () => {
             logger.info(`Farmheart API server running on port ${PORT}`);
             logger.info(`Environment: ${process.env.NODE_ENV}`);
             logger.info(`API Documentation: http://localhost:${PORT}/api`);
+            logger.info(`Health check: http://localhost:${PORT}/health`);
         });
 
         // Make server available for graceful shutdown

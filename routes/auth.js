@@ -11,9 +11,13 @@ const {
 } = require('../middleware/validation');
 
 // Public routes
-router.post('/register', authLimiter, validateRegistration, AuthController.register);
+router.post('/validate-sl-username', authLimiter, AuthController.validateSlUsername);
+router.post('/register', authLimiter, AuthController.register);
 router.post('/login', authLimiter, validateLogin, AuthController.login);
-router.post('/verify-sl', validateSLVerification, AuthController.verifySL);
+router.post('/verify-sl', authLimiter, AuthController.verifySL);
+router.post('/update-verification-code', authLimiter, AuthController.updateVerificationCode);
+router.post('/check-verification', AuthController.checkVerification);
+router.post('/refresh-verification-code', AuthController.refreshVerificationCode);
 
 // Protected routes
 router.post('/logout', authenticateToken, AuthController.logout);

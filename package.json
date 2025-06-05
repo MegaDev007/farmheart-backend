@@ -10,25 +10,31 @@
     "migrate": "node database/migrate.js",
     "seed": "node database/seed.js"
   },
-  "keywords": ["secondlife", "breedables", "api", "farmheart"],
+  "keywords": [
+    "secondlife",
+    "breedables",
+    "api",
+    "farmheart"
+  ],
   "author": "Farmheart Team",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "helmet": "^7.1.0",
     "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
-    "pg": "^8.11.3",
-    "express-rate-limit": "^7.1.5",
-    "express-validator": "^7.0.1",
-    "dotenv": "^16.3.1",
-    "winston": "^3.11.0",
     "compression": "^1.7.4",
-    "express-slow-down": "^2.0.1"
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "express-slow-down": "^2.0.1",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "nodemon": "^3.1.10",
+    "pg": "^8.11.3",
+    "redis": "^5.5.5",
+    "winston": "^3.11.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2",
     "jest": "^29.7.0",
     "supertest": "^6.3.3"
   },
