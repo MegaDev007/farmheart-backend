@@ -112,6 +112,7 @@ class VerificationService {
             logger.info('User verified successfully', { slUsername, slUuid });
             
             return {
+                success: true,
                 user: user.toJSON(),
                 message: 'SL identity verified successfully. You can now login to the website.'
             };
@@ -140,44 +141,53 @@ class VerificationService {
     }
     
     // Check verification status
-    static async checkVerificationStatus(slUsername) {
-        try {
-            // Check if user exists and is verified in database
-            const user = await User.findBySlUsername(slUsername);
-            
-            if (!user) {
-                return {
-                    isVerified: false,
-                    hasAccount: false
-                };
-            }
-            
-            // Check for recent verification success flag
-            const successKey = `verified:${slUsername}`;
-            const isRecentlyVerified = await redisClient.get(successKey);
-            
-            // Check code expiration
-            const expirationStatus = await this.checkCodeExpiration(slUsername);
-            
+// Check verification status
+static async checkVerificationStatus(slUsername) {
+    try {
+        
+        // Check if user exists and is verified in database
+        const user = await User.findBySlUsername(slUsername);
+        
+        if (!user) {
             return {
-                isVerified: user.isVerified,
-                hasAccount: true,
-                isRecentlyVerified: !!isRecentlyVerified,
-                userId: user.id,
-                isExpired: expirationStatus.isExpired,
-                timeLeft: expirationStatus.timeLeft
+                isVerified: false,
+                hasAccount: false,
+                notFound: true,
+                isRecentlyVerified: false
             };
-            
-        } catch (error) {
-            logger.error('Error checking verification status:', error);
-            throw new Error('Failed to check verification status');
         }
+        
+        // Check for recent verification success flag
+        const successKey = `verified:${slUsername}`;
+        const isRecentlyVerified = await redisClient.get(successKey);
+        
+        // Check code expiration
+        const expirationStatus = await this.checkCodeExpiration(slUsername);
+        
+        const result = {
+            isVerified: user.isVerified,
+            hasAccount: true,
+            isRecentlyVerified: !!isRecentlyVerified,
+            userId: user.id,
+            isExpired: expirationStatus.isExpired,
+            timeLeft: expirationStatus.timeLeft,
+            notFound: false
+        };
+        
+
+        
+        return result;
+        
+    } catch (error) {
+        logger.error('Error checking verification status:', error);
+        throw new Error('Failed to check verification status');
     }
+}
     
     // Refresh verification code
     static async refreshVerificationCode(email) {
         try {
-            console.log('email in refreshVerificationCode', email);
+            
             // Find user by email
             const user = await User.findByEmail(email);
             if (!user) {
@@ -198,7 +208,7 @@ class VerificationService {
             
             // Generate new code
             const newVerification = await this.generateVerificationCode(user.slUsername, email);
-            console.log('newVerification', newVerification);
+            
             
             logger.info('Verification code refreshed', { 
                 slUsername: user.slUsername, 

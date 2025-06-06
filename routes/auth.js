@@ -13,7 +13,7 @@ const {
 // Public routes
 router.post('/validate-sl-username', authLimiter, AuthController.validateSlUsername);
 router.post('/register', authLimiter, AuthController.register);
-router.post('/login', authLimiter, validateLogin, AuthController.login);
+router.post('/login', authLimiter, AuthController.login);
 router.post('/verify-sl', authLimiter, AuthController.verifySL);
 router.post('/update-verification-code', authLimiter, AuthController.updateVerificationCode);
 router.post('/check-verification', AuthController.checkVerification);

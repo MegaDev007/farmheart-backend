@@ -46,8 +46,7 @@ class AuthController {
             const user = await User.create({ slUsername, password, email });
             
             // Generate verification code in Redis
-            const verification = await VerificationService.generateVerificationCode(slUsername, email);
-            console.log("verification", verification);
+            const verification = await VerificationService.generateVerificationCode(slUsername, email)
             
             res.status(201).json({
                 success: true,
@@ -67,12 +66,12 @@ class AuthController {
 
     static async login(req, res, next) {
         try {
-            const { slUsername, password } = req.body;
+            const { slName, password } = req.body;
             const ipAddress = req.ip;
             const userAgent = req.get('User-Agent');
-
-            const result = await AuthService.login(slUsername, password, ipAddress, userAgent);
-
+    
+            const result = await AuthService.login(slName, password, ipAddress, userAgent);
+    
             res.json({
                 success: true,
                 message: 'Login successful',
@@ -82,16 +81,92 @@ class AuthController {
                     expiresAt: result.expiresAt
                 }
             });
-
+    
         } catch (error) {
-            if (error.message.includes('Invalid credentials') || 
-                error.message.includes('not verified') ||
-                error.message.includes('deactivated')) {
+            if (error.message.includes('Invalid credentials')) {
                 return res.status(401).json({
                     success: false,
                     error: error.message
                 });
             }
+            
+            // Handle unverified user case
+            if (error.isUnverified) {
+                try {
+                    // Generate a fresh verification code for the unverified user
+                    const verification = await VerificationService.generateVerificationCode(
+                        error.userData.slUsername, 
+                        error.userData.email
+                    );
+    
+                    return res.status(403).json({
+                        success: false,
+                        error: error.message,
+                        needsVerification: true,
+                        userData: {
+                            email: error.userData.email,
+                            slUsername: error.userData.slUsername,
+                            verificationCode: verification.code,
+                            expiresAt: verification.expiresAt
+                        }
+                    });
+                } catch (verificationError) {
+                    logger.error('Failed to generate verification code for unverified login:', verificationError);
+                    return res.status(403).json({
+                        success: false,
+                        error: error.message,
+                        needsVerification: true,
+                        userData: {
+                            email: error.userData.email,
+                            slUsername: error.userData.slUsername
+                        }
+                    });
+                }
+            }
+            
+            // Handle the case where error doesn't have isUnverified flag but message indicates unverified
+            if (error.message.includes('not verified')) {
+                try {
+                    // We need to get user data from the database since it wasn't in the error
+                    const User = require('../models/user');
+                    const user = await User.findBySlUsername(slName);
+                    
+                    if (user && !user.isVerified) {
+                        // Generate a fresh verification code
+                        const verification = await VerificationService.generateVerificationCode(
+                            user.slUsername, 
+                            user.email
+                        );
+    
+                        return res.status(403).json({
+                            success: false,
+                            error: error.message,
+                            needsVerification: true,
+                            userData: {
+                                email: user.email,
+                                slUsername: user.slUsername,
+                                verificationCode: verification.code,
+                                expiresAt: verification.expiresAt
+                            }
+                        });
+                    }
+                } catch (verificationError) {
+                    logger.error('Failed to handle unverified user:', verificationError);
+                    // Fall back to basic error response
+                    return res.status(403).json({
+                        success: false,
+                        error: error.message
+                    });
+                }
+            }
+            
+            if (error.message.includes('deactivated')) {
+                return res.status(401).json({
+                    success: false,
+                    error: error.message
+                });
+            }
+            
             next(error);
         }
     }

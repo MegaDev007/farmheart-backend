@@ -102,45 +102,54 @@ class AuthService {
 
     static async login(slUsername, password, ipAddress, userAgent) {
         try {
+            
             // Find user
             const user = await User.findBySlUsername(slUsername);
             if (!user) {
                 throw new Error('Invalid credentials');
             }
-
-            // Check if user is verified
-            if (!user.isVerified) {
-                throw new Error('Account not verified. Please complete SL verification first.');
-            }
-
-            // Check if user is active
-            if (!user.isActive) {
-                throw new Error('Account is deactivated');
-            }
-
-            // Validate password
+    
+            // Validate password first
             const isValidPassword = await user.validatePassword(password);
             if (!isValidPassword) {
                 throw new Error('Invalid credentials');
             }
-
+    
+            // Check if user is verified AFTER password validation
+            if (!user.isVerified) {
+                // Create a special error object with user data for unverified users
+                const unverifiedError = new Error('Account not verified. Please complete SL verification first.');
+                unverifiedError.isUnverified = true;
+                unverifiedError.userData = {
+                    email: user.email,
+                    slUsername: user.slUsername,
+                    userId: user.id
+                };
+                throw unverifiedError;
+            }
+    
+            // Check if user is active
+            if (!user.isActive) {
+                throw new Error('Account is deactivated');
+            }
+    
             // Generate session
             const sessionData = await this.createSession(user.id, ipAddress, userAgent);
-
+    
             // Update last login
             await user.updateLastLogin();
-
+    
             logger.info('User logged in successfully', { 
                 userId: user.id, 
                 slUsername: user.slUsername 
             });
-
+    
             return {
                 user: user.toJSON(),
                 token: sessionData.token,
                 expiresAt: sessionData.expiresAt
             };
-
+    
         } catch (error) {
             logger.error('Login error', { error: error.message, slUsername });
             throw error;
@@ -178,57 +187,6 @@ class AuthService {
             expiresAt
         };
     }
-
-    // static async verifySLIdentity(slUsername, verificationCode, slUuid, ipAddress) {
-    //     try {
-    //         // Find user with valid verification code
-    //         const user = await User.findByVerificationCode(slUsername, verificationCode);
-    //         if (!user) {
-    //             throw new Error('Invalid or expired verification code');
-    //         }
-
-    //         // Verify user
-    //         await user.verify(slUuid);
-
-    //         // Update verification attempt as successful
-    //         await pool.query(
-    //             `UPDATE sl_verification_attempts 
-    //              SET is_successful = true, 
-    //                  verified_at = NOW(), 
-    //                  sl_uuid = $1,
-    //                  ip_address = $2
-    //              WHERE sl_username = $3 AND verification_code = $4 AND is_successful = false`,
-    //             [slUuid, ipAddress, slUsername, verificationCode]
-    //         );
-
-    //         logger.info('SL identity verified successfully', { 
-    //             userId: user.id, 
-    //             slUsername: user.slUsername,
-    //             slUuid 
-    //         });
-
-    //         return {
-    //             user: user.toJSON(),
-    //             message: 'SL identity verified successfully. You can now login to the website.'
-    //         };
-
-    //     } catch (error) {
-    //         // Log failed attempt
-    //         await pool.query(
-    //             `INSERT INTO sl_verification_attempts 
-    //              (sl_username, verification_code, sl_uuid, ip_address, is_successful) 
-    //              VALUES ($1, $2, $3, $4, false)`,
-    //             [slUsername, verificationCode, slUuid, ipAddress]
-    //         );
-
-    //         logger.error('SL verification error', { 
-    //             error: error.message, 
-    //             slUsername, 
-    //             verificationCode 
-    //         });
-    //         throw error;
-    //     }
-    // }
 
     static async logout(sessionToken) {
         try {
