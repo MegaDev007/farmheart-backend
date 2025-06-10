@@ -2,14 +2,14 @@ const express = require('express');
 const router = express.Router();
 
 const authRoutes = require('./auth');
+const animalRoutes = require('./animals');
 // const userRoutes = require('./users');
-// const animalRoutes = require('./animals');
 // const slRoutes = require('./sl');
 
 // API versioning
 router.use('/v1/auth', authRoutes);
+router.use('/v1/animals', animalRoutes);
 // router.use('/v1/users', userRoutes);
-// router.use('/v1/animals', animalRoutes);
 // router.use('/v1/sl', slRoutes);
 
 // Health check endpoint
@@ -31,8 +31,8 @@ router.get('/', (req, res) => {
         documentation: '/docs',
         endpoints: {
             auth: '/api/v1/auth',
-            users: '/api/v1/users',
             animals: '/api/v1/animals',
+            users: '/api/v1/users',
             sl: '/api/v1/sl'
         }
     });

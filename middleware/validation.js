@@ -59,9 +59,110 @@ const validateSLVerification = [
     handleValidationErrors
 ];
 
+// Animal validation rules
+const validateAnimalRegistration = [
+    body('ownerUsername')
+        .trim()
+        .notEmpty()
+        .withMessage('Owner username is required'),
+    body('breedType')
+        .trim()
+        .isIn(['horse', 'dog', 'cat'])
+        .withMessage('Breed type must be horse, dog, or cat'),
+    body('gender')
+        .isIn(['male', 'female'])
+        .withMessage('Gender must be male or female'),
+    body('animalName')
+        .optional()
+        .trim()
+        .isLength({ max: 100 })
+        .withMessage('Animal name must be 100 characters or less'),
+    body('slRegion')
+        .optional()
+        .trim()
+        .isLength({ max: 255 })
+        .withMessage('SL region name too long'),
+    body('traits')
+        .optional()
+        .isObject()
+        .withMessage('Traits must be an object'),
+    handleValidationErrors
+];
+
+const validateAnimalStats = [
+    body('hungerPercent')
+        .optional()
+        .isInt({ min: 0, max: 100 })
+        .withMessage('Hunger percent must be between 0 and 100'),
+    body('happinessPercent')
+        .optional()
+        .isInt({ min: 0, max: 100 })
+        .withMessage('Happiness percent must be between 0 and 100'),
+    body('heatPercent')
+        .optional()
+        .isInt({ min: 0, max: 100 })
+        .withMessage('Heat percent must be between 0 and 100'),
+    body('ageDays')
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage('Age days must be a positive integer'),
+    body('isBreedable')
+        .optional()
+        .isBoolean()
+        .withMessage('Is breedable must be a boolean'),
+    body('isOperable')
+        .optional()
+        .isBoolean()
+        .withMessage('Is operable must be a boolean'),
+    body('slRegion')
+        .optional()
+        .trim()
+        .isLength({ max: 255 })
+        .withMessage('SL region name too long'),
+    handleValidationErrors
+];
+
+const validateBreeding = [
+    body('motherSlObjectKey')
+        .isUUID()
+        .withMessage('Mother SL object key must be a valid UUID'),
+    body('fatherSlObjectKey')
+        .isUUID()
+        .withMessage('Father SL object key must be a valid UUID'),
+    body('breedingRegion')
+        .trim()
+        .notEmpty()
+        .withMessage('Breeding region is required'),
+    body('isTwins')
+        .optional()
+        .isBoolean()
+        .withMessage('Is twins must be a boolean'),
+    body('offspringData')
+        .optional()
+        .isArray()
+        .withMessage('Offspring data must be an array'),
+    handleValidationErrors
+];
+
+const validateConsumption = [
+    body('consumableType')
+        .trim()
+        .isIn(['basic_food', 'breeding_food', 'minerals'])
+        .withMessage('Consumable type must be basic_food, breeding_food, or minerals'),
+    body('amount')
+        .optional()
+        .isInt({ min: 1 })
+        .withMessage('Amount must be a positive integer'),
+    handleValidationErrors
+];
+
 module.exports = {
     validateRegistration,
     validateLogin,
     validateSLVerification,
+    validateAnimalRegistration,
+    validateAnimalStats,
+    validateBreeding,
+    validateConsumption,
     handleValidationErrors
 };

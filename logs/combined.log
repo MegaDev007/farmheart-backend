@@ -3184,3 +3184,184 @@
 {"level":"info","message":"Environment: development","service":"farmheart-api","timestamp":"2025-06-06T15:32:39.428Z"}
 {"level":"info","message":"API Documentation: http://localhost:5000/api","service":"farmheart-api","timestamp":"2025-06-06T15:32:39.429Z"}
 {"level":"info","message":"Health check: http://localhost:5000/health","service":"farmheart-api","timestamp":"2025-06-06T15:32:39.429Z"}
+{"database":0,"hasPassword":false,"host":"localhost","level":"info","message":"Redis configuration:","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T17:18:50.394Z"}
+{"level":"info","message":"Connected to PostgreSQL database","service":"farmheart-api","timestamp":"2025-06-10T17:18:50.586Z"}
+{"level":"info","message":"Database connection test successful:","service":"farmheart-api","timestamp":"2025-06-10T17:18:50.589Z"}
+{"level":"info","message":"PostgreSQL connection established","service":"farmheart-api","timestamp":"2025-06-10T17:18:50.590Z"}
+{"host":"localhost","level":"info","message":"Attempting to connect to Redis...","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T17:18:50.593Z"}
+{"level":"info","message":"Redis client connecting...","service":"farmheart-api","timestamp":"2025-06-10T17:18:50.595Z"}
+{"level":"info","message":"Redis client ready and connected","service":"farmheart-api","timestamp":"2025-06-10T17:18:50.597Z"}
+{"level":"info","message":"Redis connection established successfully","ping":"PONG","service":"farmheart-api","timestamp":"2025-06-10T17:18:50.599Z"}
+{"level":"info","message":"Redis test operation successful","service":"farmheart-api","testValue":"ok","timestamp":"2025-06-10T17:18:50.601Z"}
+{"level":"info","message":"Redis connection established successfully","service":"farmheart-api","timestamp":"2025-06-10T17:18:50.602Z"}
+{"level":"info","message":"Scheduled tasks initialized","service":"farmheart-api","timestamp":"2025-06-10T17:18:50.602Z"}
+{"level":"info","message":"Farmheart API server running on port 5000","service":"farmheart-api","timestamp":"2025-06-10T17:18:50.604Z"}
+{"level":"info","message":"Environment: development","service":"farmheart-api","timestamp":"2025-06-10T17:18:50.604Z"}
+{"level":"info","message":"API Documentation: http://localhost:5000/api","service":"farmheart-api","timestamp":"2025-06-10T17:18:50.605Z"}
+{"level":"info","message":"Health check: http://localhost:5000/health","service":"farmheart-api","timestamp":"2025-06-10T17:18:50.605Z"}
+{"database":0,"hasPassword":false,"host":"localhost","level":"info","message":"Redis configuration:","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T17:18:54.876Z"}
+{"level":"info","message":"Connected to PostgreSQL database","service":"farmheart-api","timestamp":"2025-06-10T17:18:55.109Z"}
+{"level":"info","message":"Database connection test successful:","service":"farmheart-api","timestamp":"2025-06-10T17:18:55.112Z"}
+{"level":"info","message":"PostgreSQL connection established","service":"farmheart-api","timestamp":"2025-06-10T17:18:55.113Z"}
+{"host":"localhost","level":"info","message":"Attempting to connect to Redis...","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T17:18:55.115Z"}
+{"level":"info","message":"Redis client connecting...","service":"farmheart-api","timestamp":"2025-06-10T17:18:55.118Z"}
+{"level":"info","message":"Redis client ready and connected","service":"farmheart-api","timestamp":"2025-06-10T17:18:55.120Z"}
+{"level":"info","message":"Redis connection established successfully","ping":"PONG","service":"farmheart-api","timestamp":"2025-06-10T17:18:55.122Z"}
+{"level":"info","message":"Redis test operation successful","service":"farmheart-api","testValue":"ok","timestamp":"2025-06-10T17:18:55.124Z"}
+{"level":"info","message":"Redis connection established successfully","service":"farmheart-api","timestamp":"2025-06-10T17:18:55.125Z"}
+{"level":"info","message":"Scheduled tasks initialized","service":"farmheart-api","timestamp":"2025-06-10T17:18:55.125Z"}
+{"level":"info","message":"Farmheart API server running on port 5000","service":"farmheart-api","timestamp":"2025-06-10T17:18:55.127Z"}
+{"level":"info","message":"Environment: development","service":"farmheart-api","timestamp":"2025-06-10T17:18:55.127Z"}
+{"level":"info","message":"API Documentation: http://localhost:5000/api","service":"farmheart-api","timestamp":"2025-06-10T17:18:55.127Z"}
+{"level":"info","message":"Health check: http://localhost:5000/health","service":"farmheart-api","timestamp":"2025-06-10T17:18:55.127Z"}
+{"database":0,"hasPassword":false,"host":"localhost","level":"info","message":"Redis configuration:","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T17:18:57.678Z"}
+{"level":"info","message":"Connected to PostgreSQL database","service":"farmheart-api","timestamp":"2025-06-10T17:18:57.866Z"}
+{"level":"info","message":"Database connection test successful:","service":"farmheart-api","timestamp":"2025-06-10T17:18:57.871Z"}
+{"level":"info","message":"PostgreSQL connection established","service":"farmheart-api","timestamp":"2025-06-10T17:18:57.875Z"}
+{"host":"localhost","level":"info","message":"Attempting to connect to Redis...","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T17:18:57.877Z"}
+{"level":"info","message":"Redis client connecting...","service":"farmheart-api","timestamp":"2025-06-10T17:18:57.879Z"}
+{"level":"info","message":"Redis client ready and connected","service":"farmheart-api","timestamp":"2025-06-10T17:18:57.882Z"}
+{"level":"info","message":"Redis connection established successfully","ping":"PONG","service":"farmheart-api","timestamp":"2025-06-10T17:18:57.883Z"}
+{"level":"info","message":"Redis test operation successful","service":"farmheart-api","testValue":"ok","timestamp":"2025-06-10T17:18:57.886Z"}
+{"level":"info","message":"Redis connection established successfully","service":"farmheart-api","timestamp":"2025-06-10T17:18:57.887Z"}
+{"level":"info","message":"Scheduled tasks initialized","service":"farmheart-api","timestamp":"2025-06-10T17:18:57.888Z"}
+{"level":"info","message":"Farmheart API server running on port 5000","service":"farmheart-api","timestamp":"2025-06-10T17:18:57.889Z"}
+{"level":"info","message":"Environment: development","service":"farmheart-api","timestamp":"2025-06-10T17:18:57.890Z"}
+{"level":"info","message":"API Documentation: http://localhost:5000/api","service":"farmheart-api","timestamp":"2025-06-10T17:18:57.890Z"}
+{"level":"info","message":"Health check: http://localhost:5000/health","service":"farmheart-api","timestamp":"2025-06-10T17:18:57.890Z"}
+{"database":0,"hasPassword":false,"host":"localhost","level":"info","message":"Redis configuration:","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T17:19:01.209Z"}
+{"level":"info","message":"Connected to PostgreSQL database","service":"farmheart-api","timestamp":"2025-06-10T17:19:01.421Z"}
+{"level":"info","message":"Database connection test successful:","service":"farmheart-api","timestamp":"2025-06-10T17:19:01.424Z"}
+{"level":"info","message":"PostgreSQL connection established","service":"farmheart-api","timestamp":"2025-06-10T17:19:01.425Z"}
+{"host":"localhost","level":"info","message":"Attempting to connect to Redis...","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T17:19:01.428Z"}
+{"level":"info","message":"Redis client connecting...","service":"farmheart-api","timestamp":"2025-06-10T17:19:01.430Z"}
+{"level":"info","message":"Redis client ready and connected","service":"farmheart-api","timestamp":"2025-06-10T17:19:01.432Z"}
+{"level":"info","message":"Redis connection established successfully","ping":"PONG","service":"farmheart-api","timestamp":"2025-06-10T17:19:01.434Z"}
+{"level":"info","message":"Redis test operation successful","service":"farmheart-api","testValue":"ok","timestamp":"2025-06-10T17:19:01.436Z"}
+{"level":"info","message":"Redis connection established successfully","service":"farmheart-api","timestamp":"2025-06-10T17:19:01.437Z"}
+{"level":"info","message":"Scheduled tasks initialized","service":"farmheart-api","timestamp":"2025-06-10T17:19:01.437Z"}
+{"level":"info","message":"Farmheart API server running on port 5000","service":"farmheart-api","timestamp":"2025-06-10T17:19:01.439Z"}
+{"level":"info","message":"Environment: development","service":"farmheart-api","timestamp":"2025-06-10T17:19:01.439Z"}
+{"level":"info","message":"API Documentation: http://localhost:5000/api","service":"farmheart-api","timestamp":"2025-06-10T17:19:01.440Z"}
+{"level":"info","message":"Health check: http://localhost:5000/health","service":"farmheart-api","timestamp":"2025-06-10T17:19:01.440Z"}
+{"database":0,"hasPassword":false,"host":"localhost","level":"info","message":"Redis configuration:","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T17:22:40.317Z"}
+{"level":"info","message":"Connected to PostgreSQL database","service":"farmheart-api","timestamp":"2025-06-10T17:22:40.511Z"}
+{"level":"info","message":"Database connection test successful:","service":"farmheart-api","timestamp":"2025-06-10T17:22:40.515Z"}
+{"level":"info","message":"PostgreSQL connection established","service":"farmheart-api","timestamp":"2025-06-10T17:22:40.516Z"}
+{"host":"localhost","level":"info","message":"Attempting to connect to Redis...","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T17:22:40.517Z"}
+{"level":"info","message":"Redis client connecting...","service":"farmheart-api","timestamp":"2025-06-10T17:22:40.521Z"}
+{"level":"info","message":"Redis client ready and connected","service":"farmheart-api","timestamp":"2025-06-10T17:22:40.523Z"}
+{"level":"info","message":"Redis connection established successfully","ping":"PONG","service":"farmheart-api","timestamp":"2025-06-10T17:22:40.525Z"}
+{"level":"info","message":"Redis test operation successful","service":"farmheart-api","testValue":"ok","timestamp":"2025-06-10T17:22:40.527Z"}
+{"level":"info","message":"Redis connection established successfully","service":"farmheart-api","timestamp":"2025-06-10T17:22:40.529Z"}
+{"level":"info","message":"Scheduled tasks initialized","service":"farmheart-api","timestamp":"2025-06-10T17:22:40.529Z"}
+{"level":"info","message":"Farmheart API server running on port 5000","service":"farmheart-api","timestamp":"2025-06-10T17:22:40.531Z"}
+{"level":"info","message":"Environment: development","service":"farmheart-api","timestamp":"2025-06-10T17:22:40.531Z"}
+{"level":"info","message":"API Documentation: http://localhost:5000/api","service":"farmheart-api","timestamp":"2025-06-10T17:22:40.531Z"}
+{"level":"info","message":"Health check: http://localhost:5000/health","service":"farmheart-api","timestamp":"2025-06-10T17:22:40.531Z"}
+{"database":0,"hasPassword":false,"host":"localhost","level":"info","message":"Redis configuration:","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T17:53:05.619Z"}
+{"level":"info","message":"Connected to PostgreSQL database","service":"farmheart-api","timestamp":"2025-06-10T17:53:05.812Z"}
+{"level":"info","message":"Database connection test successful:","service":"farmheart-api","timestamp":"2025-06-10T17:53:05.815Z"}
+{"level":"info","message":"PostgreSQL connection established","service":"farmheart-api","timestamp":"2025-06-10T17:53:05.816Z"}
+{"host":"localhost","level":"info","message":"Attempting to connect to Redis...","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T17:53:05.818Z"}
+{"level":"info","message":"Redis client connecting...","service":"farmheart-api","timestamp":"2025-06-10T17:53:05.821Z"}
+{"level":"info","message":"Redis client ready and connected","service":"farmheart-api","timestamp":"2025-06-10T17:53:05.824Z"}
+{"level":"info","message":"Redis connection established successfully","ping":"PONG","service":"farmheart-api","timestamp":"2025-06-10T17:53:05.825Z"}
+{"level":"info","message":"Redis test operation successful","service":"farmheart-api","testValue":"ok","timestamp":"2025-06-10T17:53:05.827Z"}
+{"level":"info","message":"Redis connection established successfully","service":"farmheart-api","timestamp":"2025-06-10T17:53:05.828Z"}
+{"level":"info","message":"Scheduled tasks initialized","service":"farmheart-api","timestamp":"2025-06-10T17:53:05.829Z"}
+{"level":"info","message":"Farmheart API server running on port 5000","service":"farmheart-api","timestamp":"2025-06-10T17:53:05.830Z"}
+{"level":"info","message":"Environment: development","service":"farmheart-api","timestamp":"2025-06-10T17:53:05.831Z"}
+{"level":"info","message":"API Documentation: http://localhost:5000/api","service":"farmheart-api","timestamp":"2025-06-10T17:53:05.831Z"}
+{"level":"info","message":"Health check: http://localhost:5000/health","service":"farmheart-api","timestamp":"2025-06-10T17:53:05.831Z"}
+{"database":0,"hasPassword":false,"host":"localhost","level":"info","message":"Redis configuration:","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T17:53:27.465Z"}
+{"level":"info","message":"Connected to PostgreSQL database","service":"farmheart-api","timestamp":"2025-06-10T17:53:27.681Z"}
+{"level":"info","message":"Database connection test successful:","service":"farmheart-api","timestamp":"2025-06-10T17:53:27.684Z"}
+{"level":"info","message":"PostgreSQL connection established","service":"farmheart-api","timestamp":"2025-06-10T17:53:27.685Z"}
+{"host":"localhost","level":"info","message":"Attempting to connect to Redis...","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T17:53:27.688Z"}
+{"level":"info","message":"Redis client connecting...","service":"farmheart-api","timestamp":"2025-06-10T17:53:27.691Z"}
+{"level":"info","message":"Redis client ready and connected","service":"farmheart-api","timestamp":"2025-06-10T17:53:27.693Z"}
+{"level":"info","message":"Redis connection established successfully","ping":"PONG","service":"farmheart-api","timestamp":"2025-06-10T17:53:27.695Z"}
+{"level":"info","message":"Redis test operation successful","service":"farmheart-api","testValue":"ok","timestamp":"2025-06-10T17:53:27.697Z"}
+{"level":"info","message":"Redis connection established successfully","service":"farmheart-api","timestamp":"2025-06-10T17:53:27.698Z"}
+{"level":"info","message":"Scheduled tasks initialized","service":"farmheart-api","timestamp":"2025-06-10T17:53:27.698Z"}
+{"level":"info","message":"Farmheart API server running on port 5000","service":"farmheart-api","timestamp":"2025-06-10T17:53:27.700Z"}
+{"level":"info","message":"Environment: development","service":"farmheart-api","timestamp":"2025-06-10T17:53:27.701Z"}
+{"level":"info","message":"API Documentation: http://localhost:5000/api","service":"farmheart-api","timestamp":"2025-06-10T17:53:27.701Z"}
+{"level":"info","message":"Health check: http://localhost:5000/health","service":"farmheart-api","timestamp":"2025-06-10T17:53:27.701Z"}
+{"database":0,"hasPassword":false,"host":"localhost","level":"info","message":"Redis configuration:","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T17:53:32.172Z"}
+{"level":"info","message":"Connected to PostgreSQL database","service":"farmheart-api","timestamp":"2025-06-10T17:53:32.359Z"}
+{"level":"info","message":"Database connection test successful:","service":"farmheart-api","timestamp":"2025-06-10T17:53:32.362Z"}
+{"level":"info","message":"PostgreSQL connection established","service":"farmheart-api","timestamp":"2025-06-10T17:53:32.363Z"}
+{"host":"localhost","level":"info","message":"Attempting to connect to Redis...","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T17:53:32.365Z"}
+{"level":"info","message":"Redis client connecting...","service":"farmheart-api","timestamp":"2025-06-10T17:53:32.369Z"}
+{"level":"info","message":"Redis client ready and connected","service":"farmheart-api","timestamp":"2025-06-10T17:53:32.372Z"}
+{"level":"info","message":"Redis connection established successfully","ping":"PONG","service":"farmheart-api","timestamp":"2025-06-10T17:53:32.373Z"}
+{"level":"info","message":"Redis test operation successful","service":"farmheart-api","testValue":"ok","timestamp":"2025-06-10T17:53:32.375Z"}
+{"level":"info","message":"Redis connection established successfully","service":"farmheart-api","timestamp":"2025-06-10T17:53:32.376Z"}
+{"level":"info","message":"Scheduled tasks initialized","service":"farmheart-api","timestamp":"2025-06-10T17:53:32.376Z"}
+{"level":"info","message":"Farmheart API server running on port 5000","service":"farmheart-api","timestamp":"2025-06-10T17:53:32.378Z"}
+{"level":"info","message":"Environment: development","service":"farmheart-api","timestamp":"2025-06-10T17:53:32.378Z"}
+{"level":"info","message":"API Documentation: http://localhost:5000/api","service":"farmheart-api","timestamp":"2025-06-10T17:53:32.379Z"}
+{"level":"info","message":"Health check: http://localhost:5000/health","service":"farmheart-api","timestamp":"2025-06-10T17:53:32.379Z"}
+{"database":0,"hasPassword":false,"host":"localhost","level":"info","message":"Redis configuration:","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T18:02:23.888Z"}
+{"level":"info","message":"Connected to PostgreSQL database","service":"farmheart-api","timestamp":"2025-06-10T18:02:24.079Z"}
+{"level":"info","message":"Database connection test successful:","service":"farmheart-api","timestamp":"2025-06-10T18:02:24.082Z"}
+{"level":"info","message":"PostgreSQL connection established","service":"farmheart-api","timestamp":"2025-06-10T18:02:24.085Z"}
+{"host":"localhost","level":"info","message":"Attempting to connect to Redis...","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T18:02:24.088Z"}
+{"level":"info","message":"Redis client connecting...","service":"farmheart-api","timestamp":"2025-06-10T18:02:24.092Z"}
+{"level":"info","message":"Redis client ready and connected","service":"farmheart-api","timestamp":"2025-06-10T18:02:24.097Z"}
+{"level":"info","message":"Redis connection established successfully","ping":"PONG","service":"farmheart-api","timestamp":"2025-06-10T18:02:24.099Z"}
+{"level":"info","message":"Redis test operation successful","service":"farmheart-api","testValue":"ok","timestamp":"2025-06-10T18:02:24.103Z"}
+{"level":"info","message":"Redis connection established successfully","service":"farmheart-api","timestamp":"2025-06-10T18:02:24.106Z"}
+{"level":"info","message":"Scheduled tasks initialized","service":"farmheart-api","timestamp":"2025-06-10T18:02:24.106Z"}
+{"level":"info","message":"Farmheart API server running on port 5000","service":"farmheart-api","timestamp":"2025-06-10T18:02:24.108Z"}
+{"level":"info","message":"Environment: development","service":"farmheart-api","timestamp":"2025-06-10T18:02:24.109Z"}
+{"level":"info","message":"API Documentation: http://localhost:5000/api","service":"farmheart-api","timestamp":"2025-06-10T18:02:24.109Z"}
+{"level":"info","message":"Health check: http://localhost:5000/health","service":"farmheart-api","timestamp":"2025-06-10T18:02:24.109Z"}
+{"database":0,"hasPassword":false,"host":"localhost","level":"info","message":"Redis configuration:","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T18:44:11.079Z"}
+{"level":"info","message":"Connected to PostgreSQL database","service":"farmheart-api","timestamp":"2025-06-10T18:44:11.280Z"}
+{"level":"info","message":"Database connection test successful:","service":"farmheart-api","timestamp":"2025-06-10T18:44:11.284Z"}
+{"level":"info","message":"PostgreSQL connection established","service":"farmheart-api","timestamp":"2025-06-10T18:44:11.285Z"}
+{"host":"localhost","level":"info","message":"Attempting to connect to Redis...","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T18:44:11.287Z"}
+{"level":"info","message":"Redis client connecting...","service":"farmheart-api","timestamp":"2025-06-10T18:44:11.290Z"}
+{"level":"info","message":"Redis client ready and connected","service":"farmheart-api","timestamp":"2025-06-10T18:44:11.293Z"}
+{"level":"info","message":"Redis connection established successfully","ping":"PONG","service":"farmheart-api","timestamp":"2025-06-10T18:44:11.294Z"}
+{"level":"info","message":"Redis test operation successful","service":"farmheart-api","testValue":"ok","timestamp":"2025-06-10T18:44:11.296Z"}
+{"level":"info","message":"Redis connection established successfully","service":"farmheart-api","timestamp":"2025-06-10T18:44:11.297Z"}
+{"level":"info","message":"Scheduled tasks initialized","service":"farmheart-api","timestamp":"2025-06-10T18:44:11.297Z"}
+{"level":"info","message":"Farmheart API server running on port 5000","service":"farmheart-api","timestamp":"2025-06-10T18:44:11.299Z"}
+{"level":"info","message":"Environment: development","service":"farmheart-api","timestamp":"2025-06-10T18:44:11.299Z"}
+{"level":"info","message":"API Documentation: http://localhost:5000/api","service":"farmheart-api","timestamp":"2025-06-10T18:44:11.300Z"}
+{"level":"info","message":"Health check: http://localhost:5000/health","service":"farmheart-api","timestamp":"2025-06-10T18:44:11.300Z"}
+{"database":0,"hasPassword":false,"host":"localhost","level":"info","message":"Redis configuration:","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T18:44:15.459Z"}
+{"level":"info","message":"Connected to PostgreSQL database","service":"farmheart-api","timestamp":"2025-06-10T18:44:15.672Z"}
+{"level":"info","message":"Database connection test successful:","service":"farmheart-api","timestamp":"2025-06-10T18:44:15.676Z"}
+{"level":"info","message":"PostgreSQL connection established","service":"farmheart-api","timestamp":"2025-06-10T18:44:15.677Z"}
+{"host":"localhost","level":"info","message":"Attempting to connect to Redis...","port":6379,"service":"farmheart-api","timestamp":"2025-06-10T18:44:15.679Z"}
+{"level":"info","message":"Redis client connecting...","service":"farmheart-api","timestamp":"2025-06-10T18:44:15.681Z"}
+{"level":"info","message":"Redis client ready and connected","service":"farmheart-api","timestamp":"2025-06-10T18:44:15.684Z"}
+{"level":"info","message":"Redis connection established successfully","ping":"PONG","service":"farmheart-api","timestamp":"2025-06-10T18:44:15.686Z"}
+{"level":"info","message":"Redis test operation successful","service":"farmheart-api","testValue":"ok","timestamp":"2025-06-10T18:44:15.688Z"}
+{"level":"info","message":"Redis connection established successfully","service":"farmheart-api","timestamp":"2025-06-10T18:44:15.690Z"}
+{"level":"info","message":"Scheduled tasks initialized","service":"farmheart-api","timestamp":"2025-06-10T18:44:15.690Z"}
+{"level":"info","message":"Farmheart API server running on port 5000","service":"farmheart-api","timestamp":"2025-06-10T18:44:15.692Z"}
+{"level":"info","message":"Environment: development","service":"farmheart-api","timestamp":"2025-06-10T18:44:15.692Z"}
+{"level":"info","message":"API Documentation: http://localhost:5000/api","service":"farmheart-api","timestamp":"2025-06-10T18:44:15.693Z"}
+{"level":"info","message":"Health check: http://localhost:5000/health","service":"farmheart-api","timestamp":"2025-06-10T18:44:15.693Z"}
+{"ip":"54.86.50.139","level":"info","message":"Request received","method":"POST","service":"farmheart-api","timestamp":"2025-06-10T19:11:13.368Z","url":"/api/v1/animals/register/550e8400-e29b-41d4-a716-446655440000","userAgent":"PostmanRuntime/7.44.0"}
+{"level":"info","message":"Connected to PostgreSQL database","service":"farmheart-api","timestamp":"2025-06-10T19:11:13.388Z"}
+{"level":"error","message":"Error registering animal: Owner not found: testuser","service":"farmheart-api","stack":"Error: Owner not found: testuser\n    at AnimalService.registerAnimal (/home/ubuntu/farmheart-backend/services/animalService.js:26:23)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async registerAnimal (/home/ubuntu/farmheart-backend/controllers/animalController.js:25:28)","timestamp":"2025-06-10T19:11:13.391Z"}
+{"ip":"54.86.50.139","level":"info","message":"Request received","method":"POST","service":"farmheart-api","timestamp":"2025-06-10T19:11:31.672Z","url":"/api/v1/animals/register/550e8400-e29b-41d4-a716-446655440000","userAgent":"PostmanRuntime/7.44.0"}
+{"code":"42P01","file":"parse_relation.c","length":112,"level":"error","line":"1449","message":"Error registering animal: relation \"animal_breeds\" does not exist","name":"error","position":"16","routine":"parserOpenTable","service":"farmheart-api","severity":"ERROR","stack":"error: relation \"animal_breeds\" does not exist\n    at /home/ubuntu/farmheart-backend/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async AnimalService.registerAnimal (/home/ubuntu/farmheart-backend/services/animalService.js:35:33)\n    at async registerAnimal (/home/ubuntu/farmheart-backend/controllers/animalController.js:25:28)","timestamp":"2025-06-10T19:11:31.679Z"}
+{"error":"relation \"animal_breeds\" does not exist","ip":"54.86.50.139","level":"error","message":"Error occurred:","method":"POST","service":"farmheart-api","stack":"error: relation \"animal_breeds\" does not exist\n    at /home/ubuntu/farmheart-backend/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async AnimalService.registerAnimal (/home/ubuntu/farmheart-backend/services/animalService.js:35:33)\n    at async registerAnimal (/home/ubuntu/farmheart-backend/controllers/animalController.js:25:28)","timestamp":"2025-06-10T19:11:31.683Z","url":"/api/v1/animals/register/550e8400-e29b-41d4-a716-446655440000"}
+{"ip":"54.86.50.139","level":"info","message":"Request received","method":"POST","service":"farmheart-api","timestamp":"2025-06-10T19:16:36.340Z","url":"/api/v1/animals/register/550e8400-e29b-41d4-a716-446655440000","userAgent":"PostmanRuntime/7.44.0"}
+{"level":"info","message":"Connected to PostgreSQL database","service":"farmheart-api","timestamp":"2025-06-10T19:16:36.351Z"}
+{"level":"warn","message":"Trait value not found: flowing for type tail","service":"farmheart-api","timestamp":"2025-06-10T19:16:36.360Z"}
+{"animalId":1,"level":"info","message":"Animal created","ownerId":57,"service":"farmheart-api","slObjectKey":"550e8400-e29b-41d4-a716-446655440000","timestamp":"2025-06-10T19:16:36.366Z"}
+{"animalId":1,"breed":"horse","level":"info","message":"Animal registered successfully","ownerUsername":"byddev","service":"farmheart-api","slObjectKey":"550e8400-e29b-41d4-a716-446655440000","timestamp":"2025-06-10T19:16:36.367Z"}
+{"ip":"54.202.137.108","level":"info","message":"Request received","method":"POST","service":"farmheart-api","timestamp":"2025-06-10T19:20:27.159Z","url":"/api/v1/animals/register/aa4cb2c3-4aad-193b-c148-96f12ddd473b","userAgent":"Second-Life-LSL/2025-04-24.14648572313 (https://secondlife.com)"}
+{"level":"info","message":"Connected to PostgreSQL database","service":"farmheart-api","timestamp":"2025-06-10T19:20:27.171Z"}
+{"level":"warn","message":"Trait value not found: flowing for type tail","service":"farmheart-api","timestamp":"2025-06-10T19:20:27.179Z"}
+{"animalId":2,"level":"info","message":"Animal created","ownerId":57,"service":"farmheart-api","slObjectKey":"aa4cb2c3-4aad-193b-c148-96f12ddd473b","timestamp":"2025-06-10T19:20:27.183Z"}
+{"animalId":2,"breed":"horse","level":"info","message":"Animal registered successfully","ownerUsername":"byddev","service":"farmheart-api","slObjectKey":"aa4cb2c3-4aad-193b-c148-96f12ddd473b","timestamp":"2025-06-10T19:20:27.184Z"}
