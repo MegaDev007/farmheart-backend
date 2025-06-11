@@ -102,7 +102,7 @@ class AuthService {
 
     static async login(slUsername, password, ipAddress, userAgent) {
         try {
-            
+
             // Find user
             const user = await User.findBySlUsername(slUsername);
             if (!user) {

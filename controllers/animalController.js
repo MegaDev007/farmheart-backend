@@ -2,6 +2,7 @@
 const AnimalService = require('../services/animalService');
 const Animal = require('../models/animal');
 const logger = require('../utils/logger');
+const { pool } = require('../config/database'); 
 
 class AnimalController {
 
@@ -377,20 +378,43 @@ class AnimalController {
             const { userId } = req.user;
             const depth = parseInt(req.query.depth) || 3;
 
-            // Verify ownership
-            const result = await pool.query(
-                'SELECT * FROM animals WHERE id = $1 AND owner_id = $2',
-                [animalId, userId]
-            );
-
-            if (result.rows.length === 0) {
-                return res.status(404).json({
+            // Validate inputs
+            if (!animalId || isNaN(parseInt(animalId))) {
+                return res.status(400).json({
                     success: false,
-                    error: 'Animal not found or access denied'
+                    error: 'Invalid animal ID'
                 });
             }
 
-            const lineage = await this.buildLineageTree(parseInt(animalId), depth);
+            if (depth < 1 || depth > 10) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Depth must be between 1 and 10'
+                });
+            }
+
+            // Verify ownership
+            const ownershipResult = await pool.query(
+                'SELECT id, owner_id FROM animals WHERE id = $1',
+                [animalId]
+            );
+
+            if (ownershipResult.rows.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Animal not found'
+                });
+            }
+
+            if (ownershipResult.rows[0].owner_id !== userId) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Access denied'
+                });
+            }
+
+            // Build lineage tree using the CLASS NAME, not 'this'
+            const lineage = await AnimalController.buildLineageTreeOptimized(parseInt(animalId), depth);
 
             res.json({
                 success: true,
@@ -400,7 +424,226 @@ class AnimalController {
             });
 
         } catch (error) {
+            console.error('Error in getAnimalLineage:', error);
             next(error);
+        }
+    }
+
+    static async buildLineageTreeOptimized(animalId, maxDepth) {
+        try {
+            console.log(`Building lineage tree for animal ${animalId} with depth ${maxDepth}`);
+
+            // Use PostgreSQL recursive CTE for efficient lineage traversal
+            const lineageQuery = `
+                WITH RECURSIVE lineage_tree AS (
+                    -- Base case: start with the requested animal
+                    SELECT 
+                        a.id,
+                        a.name,
+                        a.gender,
+                        a.mother_id,
+                        a.father_id,
+                        a.birth_date,
+                        ab.name as breed_name,
+                        0 as depth,
+                        'self' as relation
+                    FROM animals a
+                    JOIN animal_breeds ab ON a.breed_id = ab.id
+                    WHERE a.id = $1
+                    
+                    UNION ALL
+                    
+                    -- Recursive case: get parents
+                    SELECT 
+                        a.id,
+                        a.name,
+                        a.gender,
+                        a.mother_id,
+                        a.father_id,
+                        a.birth_date,
+                        ab.name as breed_name,
+                        lt.depth + 1 as depth,
+                        CASE 
+                            WHEN a.id = lt.mother_id THEN 'mother'
+                            WHEN a.id = lt.father_id THEN 'father'
+                            ELSE 'ancestor'
+                        END as relation
+                    FROM animals a
+                    JOIN animal_breeds ab ON a.breed_id = ab.id
+                    JOIN lineage_tree lt ON (a.id = lt.mother_id OR a.id = lt.father_id)
+                    WHERE lt.depth < $2
+                )
+                SELECT DISTINCT * FROM lineage_tree 
+                ORDER BY depth, relation, name;
+            `;
+
+            const result = await pool.query(lineageQuery, [animalId, maxDepth]);
+            
+            if (result.rows.length === 0) {
+                return null;
+            }
+
+            // Get traits for all animals in lineage
+            const animalIds = result.rows.map(row => row.id);
+            const traitsQuery = `
+                SELECT 
+                    at.animal_id,
+                    att.name as trait_type,
+                    att.display_name as trait_type_display,
+                    atv.value as trait_value,
+                    atv.display_name as trait_value_display,
+                    atv.rarity_level
+                FROM animal_traits at
+                JOIN animal_trait_types att ON at.trait_type_id = att.id
+                JOIN animal_trait_values atv ON at.trait_value_id = atv.id
+                WHERE at.animal_id = ANY($1)
+                ORDER BY at.animal_id, att.name;
+            `;
+
+            const traitsResult = await pool.query(traitsQuery, [animalIds]);
+            
+            // Organize traits by animal ID
+            const traitsByAnimal = {};
+            traitsResult.rows.forEach(trait => {
+                if (!traitsByAnimal[trait.animal_id]) {
+                    traitsByAnimal[trait.animal_id] = [];
+                }
+                traitsByAnimal[trait.animal_id].push({
+                    traitType: trait.trait_type,
+                    traitTypeDisplay: trait.trait_type_display,
+                    traitValue: trait.trait_value,
+                    traitValueDisplay: trait.trait_value_display,
+                    rarityLevel: trait.rarity_level
+                });
+            });
+
+            // Build the hierarchical structure - USE CLASS NAME
+            return AnimalController.buildHierarchicalStructure(result.rows, traitsByAnimal, animalId);
+
+        } catch (error) {
+            console.error('Error building lineage tree:', error);
+            throw new Error('Failed to build lineage tree');
+        }
+    }
+
+    // Helper method to build hierarchical structure from flat lineage data
+    static buildHierarchicalStructure(lineageRows, traitsByAnimal, rootAnimalId) {
+        try {
+            const animalsMap = new Map();
+            
+            // Create animal objects
+            lineageRows.forEach(row => {
+                const animal = {
+                    id: row.id,
+                    name: row.name,
+                    breed: row.breed_name,
+                    gender: row.gender,
+                    birthDate: row.birth_date,
+                    depth: row.depth,
+                    relation: row.relation,
+                    traits: traitsByAnimal[row.id] || [],
+                    parents: {}
+                };
+                
+                animalsMap.set(row.id, animal);
+            });
+
+            // Build parent-child relationships
+            lineageRows.forEach(row => {
+                const animal = animalsMap.get(row.id);
+                
+                if (row.mother_id && animalsMap.has(row.mother_id)) {
+                    animal.parents.mother = animalsMap.get(row.mother_id);
+                }
+                
+                if (row.father_id && animalsMap.has(row.father_id)) {
+                    animal.parents.father = animalsMap.get(row.father_id);
+                }
+            });
+
+            // Return the root animal with full lineage
+            return animalsMap.get(rootAnimalId) || null;
+
+        } catch (error) {
+            console.error('Error building hierarchical structure:', error);
+            throw new Error('Failed to build hierarchical structure');
+        }
+    }
+
+
+    // Alternative simple lineage method (fallback)
+    static async buildLineageTreeSimple(animalId, depth, currentDepth = 0) {
+        if (currentDepth >= depth) return null;
+
+        try {
+            const result = await pool.query(
+                `SELECT a.*, ab.name as breed_name
+                 FROM animals a
+                 LEFT JOIN animal_breeds ab ON a.breed_id = ab.id
+                 WHERE a.id = $1`,
+                [animalId]
+            );
+
+            if (result.rows.length === 0) return null;
+
+            const animalData = result.rows[0];
+            const animal = {
+                id: animalData.id,
+                name: animalData.name,
+                breed: animalData.breed_name,
+                gender: animalData.gender,
+                birthDate: animalData.birth_date,
+                traits: [],
+                parents: {}
+            };
+
+            // Load traits for this animal
+            try {
+                const traitsResult = await pool.query(
+                    `SELECT att.name as trait_type, att.display_name as trait_type_display,
+                            atv.value as trait_value, atv.display_name as trait_value_display,
+                            atv.rarity_level
+                     FROM animal_traits at
+                     JOIN animal_trait_types att ON at.trait_type_id = att.id
+                     JOIN animal_trait_values atv ON at.trait_value_id = atv.id
+                     WHERE at.animal_id = $1`,
+                    [animalId]
+                );
+
+                animal.traits = traitsResult.rows.map(trait => ({
+                    traitType: trait.trait_type,
+                    traitTypeDisplay: trait.trait_type_display,
+                    traitValue: trait.trait_value,
+                    traitValueDisplay: trait.trait_value_display,
+                    rarityLevel: trait.rarity_level
+                }));
+            } catch (traitsError) {
+                console.warn('Could not load traits for animal:', animalId, traitsError.message);
+                animal.traits = [];
+            }
+
+            // Recursively load parents
+            if (animalData.mother_id) {
+                animal.parents.mother = await this.buildLineageTreeSimple(
+                    animalData.mother_id, 
+                    depth, 
+                    currentDepth + 1
+                );
+            }
+
+            if (animalData.father_id) {
+                animal.parents.father = await this.buildLineageTreeSimple(
+                    animalData.father_id, 
+                    depth, 
+                    currentDepth + 1
+                );
+            }
+
+            return animal;
+
+        } catch (error) {
+            console.error(`Error building lineage for animal ${animalId}:`, error);
+            return null;
         }
     }
 
@@ -441,6 +684,7 @@ class AnimalController {
     // Get animal breeding history
     static async getBreedingHistory(req, res, next) {
         try {
+
             const { animalId } = req.params;
             const { userId } = req.user;
 
@@ -539,9 +783,9 @@ class AnimalController {
             parents: {}
         };
 
-        // Recursively load parents
+        // Recursively load parents - USE CLASS NAME
         if (animal.motherId) {
-            lineageNode.parents.mother = await this.buildLineageTree(
+            lineageNode.parents.mother = await AnimalController.buildLineageTree(
                 animal.motherId, 
                 depth, 
                 currentDepth + 1
@@ -549,7 +793,7 @@ class AnimalController {
         }
 
         if (animal.fatherId) {
-            lineageNode.parents.father = await this.buildLineageTree(
+            lineageNode.parents.father = await AnimalController.buildLineageTree(
                 animal.fatherId, 
                 depth, 
                 currentDepth + 1

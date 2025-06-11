@@ -65,6 +65,7 @@ class AuthController {
     }
 
     static async login(req, res, next) {
+        console.log("request", req.body);
         try {
             const { slName, password } = req.body;
             const ipAddress = req.ip;

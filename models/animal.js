@@ -206,6 +206,7 @@ class Animal {
     // Update animal stats (called from SL)
     async updateStats(stats) {
         const {
+            animalName,
             hungerPercent,
             happinessPercent,
             heatPercent,
@@ -218,22 +219,23 @@ class Animal {
 
         const result = await pool.query(
             `UPDATE animals SET 
-                hunger_percent = COALESCE($1, hunger_percent),
-                happiness_percent = COALESCE($2, happiness_percent),
-                heat_percent = COALESCE($3, heat_percent),
-                age_days = COALESCE($4, age_days),
-                is_breedable = COALESCE($5, is_breedable),
-                is_operable = COALESCE($6, is_operable),
-                sl_region = COALESCE($7, sl_region),
-                sl_position_x = COALESCE($8, sl_position_x),
-                sl_position_y = COALESCE($9, sl_position_y),
-                sl_position_z = COALESCE($10, sl_position_z),
+                name = COALESCE($1, name),
+                hunger_percent = COALESCE($2, hunger_percent),
+                happiness_percent = COALESCE($3, happiness_percent),
+                heat_percent = COALESCE($4, heat_percent),
+                age_days = COALESCE($5, age_days),
+                is_breedable = COALESCE($6, is_breedable),
+                is_operable = COALESCE($7, is_operable),
+                sl_region = COALESCE($8, sl_region),
+                sl_position_x = COALESCE($9, sl_position_x),
+                sl_position_y = COALESCE($10, sl_position_y),
+                sl_position_z = COALESCE($11, sl_position_z),
                 last_sync_at = NOW(),
                 updated_at = NOW()
-             WHERE id = $11
+             WHERE id = $12
              RETURNING *`,
             [
-                hungerPercent, happinessPercent, heatPercent, ageDays, 
+                animalName, hungerPercent, happinessPercent, heatPercent, ageDays, 
                 isBreedable, isOperable, slRegion, 
                 slPosition?.x, slPosition?.y, slPosition?.z, 
                 this.id
@@ -343,124 +345,228 @@ class Animal {
         return this;
     }
 
-    // Load animal traits
     async loadTraits() {
-        const result = await pool.query(
-            `SELECT at.*, att.name as trait_type, att.display_name as trait_type_display,
-                    atv.value as trait_value, atv.display_name as trait_value_display,
-                    atv.rarity_level
-             FROM animal_traits at
-             JOIN animal_trait_types att ON at.trait_type_id = att.id
-             JOIN animal_trait_values atv ON at.trait_value_id = atv.id
-             WHERE at.animal_id = $1
-             ORDER BY att.name`,
-            [this.id]
-        );
+        try {
+            if (!this.id) {
+                console.warn('Cannot load traits: Animal ID is missing');
+                this.traits = [];
+                return;
+            }
 
-        this.traits = result.rows.map(row => ({
-            id: row.id,
-            traitType: row.trait_type,
-            traitTypeDisplay: row.trait_type_display,
-            traitValue: row.trait_value,
-            traitValueDisplay: row.trait_value_display,
-            rarityLevel: row.rarity_level,
-            inheritedFrom: row.inherited_from
-        }));
-
-        return this.traits;
-    }
-
-    // Load parent information
-    async loadParents() {
-        if (this.motherId || this.fatherId) {
             const result = await pool.query(
-                `SELECT id, name, sl_object_key, 'mother' as parent_type FROM animals WHERE id = $1
-                 UNION ALL
-                 SELECT id, name, sl_object_key, 'father' as parent_type FROM animals WHERE id = $2`,
-                [this.motherId, this.fatherId]
+                `SELECT at.*, 
+                        att.name as trait_type, 
+                        att.display_name as trait_type_display,
+                        atv.value as trait_value, 
+                        atv.display_name as trait_value_display,
+                        atv.rarity_level
+                 FROM animal_traits at
+                 JOIN animal_trait_types att ON at.trait_type_id = att.id
+                 JOIN animal_trait_values atv ON at.trait_value_id = atv.id
+                 WHERE at.animal_id = $1
+                 ORDER BY att.name`,
+                [this.id]
             );
 
-            result.rows.forEach(row => {
-                if (row.parent_type === 'mother') {
-                    this.parents.mother = {
-                        id: row.id,
-                        name: row.name,
-                        slObjectKey: row.sl_object_key
-                    };
-                } else {
-                    this.parents.father = {
-                        id: row.id,
-                        name: row.name,
-                        slObjectKey: row.sl_object_key
-                    };
-                }
-            });
-        }
+            this.traits = result.rows.map(trait => ({
+                traitType: trait.trait_type,
+                traitTypeDisplay: trait.trait_type_display,
+                traitValue: trait.trait_value,
+                traitValueDisplay: trait.trait_value_display,
+                rarityLevel: trait.rarity_level,
+                inheritedFrom: trait.inherited_from || 'unknown'
+            }));
 
-        return this.parents;
+        } catch (error) {
+            console.error('Error loading traits for animal:', this.id, error);
+            this.traits = []; // Set empty array on error
+        }
     }
 
-    // Load offspring
+    // Fixed loadParents method
+    async loadParents() {
+        try {
+            this.parents = {
+                mother: null,
+                father: null
+            };
+
+            // Load mother
+            if (this.motherId) {
+                try {
+                    const motherResult = await pool.query(
+                        'SELECT * FROM animals WHERE id = $1',
+                        [this.motherId]
+                    );
+                    
+                    if (motherResult.rows.length > 0) {
+                        this.parents.mother = new Animal(motherResult.rows[0]);
+                    }
+                } catch (error) {
+                    console.warn('Could not load mother:', this.motherId, error.message);
+                }
+            }
+
+            // Load father
+            if (this.fatherId) {
+                try {
+                    const fatherResult = await pool.query(
+                        'SELECT * FROM animals WHERE id = $1',
+                        [this.fatherId]
+                    );
+                    
+                    if (fatherResult.rows.length > 0) {
+                        this.parents.father = new Animal(fatherResult.rows[0]);
+                    }
+                } catch (error) {
+                    console.warn('Could not load father:', this.fatherId, error.message);
+                }
+            }
+
+        } catch (error) {
+            console.error('Error loading parents for animal:', this.id, error);
+            this.parents = { mother: null, father: null };
+        }
+    }
+
+    // Fixed loadOffspring method
     async loadOffspring() {
-        const result = await pool.query(
-            `SELECT id, name, sl_object_key, gender, birth_date, status
-             FROM animals 
-             WHERE mother_id = $1 OR father_id = $1
-             ORDER BY birth_date DESC`,
-            [this.id]
-        );
+        try {
+            const result = await pool.query(
+                `SELECT a.*, ab.name as breed_name
+                 FROM animals a
+                 LEFT JOIN animal_breeds ab ON a.breed_id = ab.id
+                 WHERE a.mother_id = $1 OR a.father_id = $1
+                 ORDER BY a.birth_date DESC`,
+                [this.id]
+            );
 
-        this.offspring = result.rows.map(row => ({
-            id: row.id,
-            name: row.name,
-            slObjectKey: row.sl_object_key,
-            gender: row.gender,
-            birthDate: row.birth_date,
-            status: row.status
-        }));
+            this.offspring = result.rows.map(child => ({
+                id: child.id,
+                name: child.name,
+                breed: child.breed_name,
+                gender: child.gender,
+                birthDate: child.birth_date,
+                status: child.status
+            }));
 
-        return this.offspring;
+            return this.offspring;
+
+        } catch (error) {
+            console.error('Error loading offspring for animal:', this.id, error);
+            this.offspring = [];
+            return [];
+        }
     }
 
     // Get breeding history
     async getBreedingHistory() {
-        const result = await pool.query(
-            `SELECT br.*, 
-                    m.name as mother_name, f.name as father_name,
-                    COUNT(births.id) as offspring_count
-             FROM breeding_records br
-             LEFT JOIN animals m ON br.mother_id = m.id
-             LEFT JOIN animals f ON br.father_id = f.id
-             LEFT JOIN birth_records births ON br.id = births.breeding_record_id
-             WHERE br.mother_id = $1 OR br.father_id = $1
-             GROUP BY br.id, m.name, f.name
-             ORDER BY br.bred_at DESC`,
-            [this.id]
-        );
+        try {
+            const result = await pool.query(
+                `SELECT br.*,
+                        m.name as mother_name,
+                        f.name as father_name,
+                        COUNT(birth_r.id) as offspring_count
+                 FROM breeding_records br
+                 LEFT JOIN animals m ON br.mother_id = m.id
+                 LEFT JOIN animals f ON br.father_id = f.id
+                 LEFT JOIN birth_records birth_r ON br.id = birth_r.breeding_record_id
+                 WHERE br.mother_id = $1 OR br.father_id = $1
+                 GROUP BY br.id, m.name, f.name
+                 ORDER BY br.bred_at DESC
+                 LIMIT 50`,
+                [this.id]
+            );
 
-        return result.rows.map(row => ({
-            id: row.id,
-            motherName: row.mother_name,
-            fatherName: row.father_name,
-            bredAt: row.bred_at,
-            gestationCompleteAt: row.gestation_complete_at,
-            isTwins: row.is_twins,
-            offspringCount: parseInt(row.offspring_count),
-            breedingRegion: row.breeding_region
-        }));
+            return result.rows.map(record => ({
+                id: record.id,
+                bredAt: record.bred_at,
+                motherName: record.mother_name,
+                fatherName: record.father_name,
+                isTwins: record.is_twins,
+                offspringCount: parseInt(record.offspring_count) || 0,
+                breedingRegion: record.breeding_region
+            }));
+
+        } catch (error) {
+            console.error('Error getting breeding history for animal:', this.id, error);
+            return [];
+        }
     }
 
-    // Calculate breeding eligibility
+    // Fixed getDetailedStats method
+    getDetailedStats() {
+        try {
+            return {
+                basic: {
+                    id: this.id,
+                    name: this.name || 'Unnamed',
+                    breed: this.breed || 'Unknown',
+                    gender: this.gender || 'Unknown',
+                    ageDays: this.ageDays || 0,
+                    status: this.status || 'unknown'
+                },
+                vitals: {
+                    hunger: this.hungerPercent || 0,
+                    happiness: this.happinessPercent || 0,
+                    heat: this.heatPercent || 0,
+                    isOperable: this.isOperable || false
+                },
+                breeding: {
+                    isEligible: this.isEligibleForBreeding() || false,
+                    breedingCount: this.breedingCount || 0,
+                    lastBredAt: this.lastBredAt || null,
+                    isBreedable: this.isBreedable || false
+                },
+                timestamps: {
+                    birthDate: this.birthDate || null,
+                    lastSyncAt: this.lastSyncAt || null,
+                    createdAt: this.createdAt || null,
+                    updatedAt: this.updatedAt || null
+                },
+                location: {
+                    region: this.slRegion || null,
+                    position: this.slPosition || null
+                },
+                family: {
+                    parents: this.parents || { mother: null, father: null },
+                    offspring: this.offspring || []
+                },
+                traits: this.traits || []
+            };
+        } catch (error) {
+            console.error('Error generating detailed stats for animal:', this.id, error);
+            // Return minimal safe structure
+            return {
+                basic: { id: this.id, name: 'Error', breed: 'Unknown', gender: 'Unknown' },
+                vitals: { hunger: 0, happiness: 0, heat: 0, isOperable: false },
+                breeding: { isEligible: false, breedingCount: 0 },
+                timestamps: {},
+                location: {},
+                family: { parents: {}, offspring: [] },
+                traits: []
+            };
+        }
+    }
+
+    // Safe isEligibleForBreeding method
     isEligibleForBreeding() {
-        return (
-            this.status === 'alive' &&
-            this.isBreedable &&
-            this.heatPercent >= 100 &&
-            this.happinessPercent >= 95 &&
-            this.hungerPercent <= 5 &&
-            this.isOperable &&
-            this.breedingCount < 18 // Max breeding count for females
-        );
+        try {
+            return (
+                this.status === 'alive' &&
+                this.isBreedable === true &&
+                this.ageDays >= 7 &&
+                this.ageDays <= 103 &&
+                this.heatPercent >= 100 &&
+                this.happinessPercent >= 95 &&
+                this.hungerPercent <= 5 &&
+                this.breedingCount < 18 &&
+                this.isOperable === true
+            );
+        } catch (error) {
+            console.error('Error checking breeding eligibility:', error);
+            return false;
+        }
     }
 
     // Get detailed stats for display
