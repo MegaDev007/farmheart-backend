@@ -44,15 +44,76 @@ app.use(helmet({
     crossOriginEmbedderPolicy: false
 }));
 
-// CORS configuration
+// CORS configuration that allows ngrok headers
 const corsOptions = {
-    origin: '*',
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'https://your-vercel-app.vercel.app',
+      /\.vercel\.app$/,
+      /\.ngrok-free\.app$/,
+      /\.ngrok\.io$/
+    ],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-};
-
-app.use(cors(corsOptions));
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+      'ngrok-skip-browser-warning'  // ← This is the key addition
+    ],
+    exposedHeaders: [
+      'Content-Range',
+      'X-Content-Range'
+    ]
+  };
+  
+  // Apply CORS middleware
+  app.use(cors(corsOptions));
+  
+  // Handle preflight OPTIONS requests
+  app.options('*', (req, res) => {
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept, Origin, ngrok-skip-browser-warning');
+    res.header('Access-Control-Allow-Credentials', true);
+    res.sendStatus(200);
+  });
+  
+  // Additional middleware to ensure CORS headers are always set
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    
+    if (corsOptions.origin.some(allowedOrigin => {
+      if (typeof allowedOrigin === 'string') {
+        return allowedOrigin === origin;
+      }
+      return allowedOrigin.test(origin);
+    })) {
+      res.header('Access-Control-Allow-Origin', origin);
+    }
+    
+    res.header('Access-Control-Allow-Credentials', true);
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept, Origin, ngrok-skip-browser-warning');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
+    
+    next();
+  });
+  
+  // Your other middleware and routes...
+  app.use(express.json());
+  
+  // Test endpoint to verify CORS is working
+  app.get('/api/v1/test-cors', (req, res) => {
+    res.json({ 
+      message: 'CORS is working!', 
+      headers: req.headers,
+      timestamp: new Date().toISOString()
+    });
+  });
 
 // General middleware
 app.use(compression());
