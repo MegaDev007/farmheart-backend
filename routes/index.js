@@ -3,12 +3,14 @@ const router = express.Router();
 
 const authRoutes = require('./auth');
 const animalRoutes = require('./animals');
+const notificationRoutes = require('./notifications');
 // const userRoutes = require('./users');
 // const slRoutes = require('./sl');
 
 // API versioning
 router.use('/v1/auth', authRoutes);
 router.use('/v1/animals', animalRoutes);
+router.use('/v1/notifications', notificationRoutes);
 // router.use('/v1/users', userRoutes);
 // router.use('/v1/sl', slRoutes);
 

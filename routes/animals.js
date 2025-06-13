@@ -20,7 +20,7 @@ router.post('/register/:slObjectKey',
 );
 
 router.put('/stats/:slObjectKey', 
-    generalLimiter, 
+    // generalLimiter, 
     validateAnimalStats, 
     AnimalController.updateStats
 );

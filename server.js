@@ -7,6 +7,8 @@ const helmet = require('helmet');
 const compression = require('compression');
 const path = require('path');
 const fs = require('fs');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
 
 // Import configurations and utilities
 const { testConnection } = require('./config/database');
@@ -21,8 +23,10 @@ const routes = require('./routes');
 // Import services for scheduled tasks
 const AuthService = require('./services/authService');
 const VerificationService = require('./services/verificationService');
+const NotificationScheduler = require('./utils/notificationScheduler');
 
 const app = express();
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 5000;
 
 // Create logs directory if it doesn't exist
@@ -30,27 +34,13 @@ const logsDir = path.join(__dirname, 'logs');
 if (!fs.existsSync(logsDir)) {
     fs.mkdirSync(logsDir);
 }
-
-// Security middleware
-app.use(helmet({
-    contentSecurityPolicy: {
-        directives: {
-            defaultSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
-            scriptSrc: ["'self'"],
-            imgSrc: ["'self'", "data:", "https:"],
-        },
-    },
-    crossOriginEmbedderPolicy: false
-}));
-
-// FIXED: Specific CORS configuration
+// CORS configuration for both Express and Socket.IO
 const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:5173',
     'http://localhost:5174',
-    'http://192.168.103.179:5173', // Your local IP
-    'https://farmheart-frontend.vercel.app', // Replace with your actual Vercel domain
+    'http://192.168.103.179:5173',
+    'https://farmheart-frontend.vercel.app',
     'https://farmheartvirtual.com',
     'https://www.farmheartvirtual.com'
 ];
@@ -74,7 +64,31 @@ const corsOptions = {
     optionsSuccessStatus: 200
 };
 
-app.use(cors(corsOptions));
+// Set up Socket.IO with CORS
+const io = new Server(httpServer, {
+    cors: {
+        origin: allowedOrigins,
+        methods: ["GET", "POST"],
+        credentials: true
+    },
+    transports: ['websocket', 'polling']
+});
+
+// Make io available globally for notifications
+global.io = io;
+
+// Security middleware
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "https:"],
+        },
+    },
+    crossOriginEmbedderPolicy: false
+}));
 
 // General middleware
 app.use(compression());
@@ -128,7 +142,8 @@ app.get('/health', async (req, res) => {
         origin: req.headers.origin,
         services: {
             database: 'connected',
-            redis: redisStatus
+            redis: redisStatus,
+            socketio: 'connected'
         }
     });
 });
@@ -157,6 +172,96 @@ app.use('*', (req, res) => {
 // Global error handler
 app.use(errorHandler);
 
+// Socket.IO Connection Handling
+io.on('connection', (socket) => {
+    console.log('🔌 New client connected:', socket.id);
+    
+    // User authentication and room joining
+    socket.on('authenticate', async (data) => {
+        try {
+            const { token, userId } = data;
+            
+            // Verify JWT token here if needed
+            // const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            
+            if (userId) {
+                socket.userId = userId;
+                socket.join(`user_${userId}`);
+                console.log(`✅ User ${userId} authenticated and joined room`);
+                
+                // Send confirmation
+                socket.emit('authenticated', {
+                    success: true,
+                    message: 'Connected to real-time notifications',
+                    userId: userId
+                });
+                
+                // Send any unread notification count
+                try {
+                    const NotificationService = require('./services/notificationService');
+                    const stats = await NotificationService.getNotificationStats(userId);
+                    socket.emit('notification_stats', stats);
+                } catch (error) {
+                    console.error('Error getting notification stats:', error);
+                }
+            }
+        } catch (error) {
+            console.error('Authentication error:', error);
+            socket.emit('auth_error', { message: 'Authentication failed' });
+        }
+    });
+    
+    // Handle notification mark as read
+    socket.on('mark_notification_read', async (data) => {
+        try {
+            const { notificationId } = data;
+            const userId = socket.userId;
+            
+            if (userId && notificationId) {
+                const NotificationService = require('./services/notificationService');
+                await NotificationService.markAsRead(notificationId, userId);
+                
+                // Send updated stats
+                const stats = await NotificationService.getNotificationStats(userId);
+                socket.emit('notification_stats', stats);
+                
+                console.log(`📖 Notification ${notificationId} marked as read by user ${userId}`);
+            }
+        } catch (error) {
+            console.error('Error marking notification as read:', error);
+        }
+    });
+    
+    // Handle requesting notification history
+    socket.on('get_notifications', async (data) => {
+        try {
+            const userId = socket.userId;
+            const { limit = 20, unreadOnly = false } = data || {};
+            
+            if (userId) {
+                const NotificationService = require('./services/notificationService');
+                const notifications = await NotificationService.getUserNotifications(userId, {
+                    limit,
+                    unreadOnly
+                });
+                
+                socket.emit('notifications_list', notifications);
+            }
+        } catch (error) {
+            console.error('Error getting notifications:', error);
+            socket.emit('notifications_error', { message: 'Failed to get notifications' });
+        }
+    });
+    
+    // Handle disconnection
+    socket.on('disconnect', () => {
+        console.log('🔌 Client disconnected:', socket.id);
+        if (socket.userId) {
+            console.log(`👋 User ${socket.userId} disconnected`);
+        }
+    });
+});
+
 // Graceful shutdown
 process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
@@ -164,22 +269,26 @@ process.on('SIGINT', gracefulShutdown);
 function gracefulShutdown(signal) {
     logger.info(`Received ${signal}. Starting graceful shutdown...`);
     
-    global.server.close(() => {
+    httpServer.close(() => {
         logger.info('HTTP server closed.');
         
-        redisClient.quit().then(() => {
-            logger.info('Redis connection closed.');
+        io.close(() => {
+            logger.info('Socket.IO server closed.');
             
-            require('./config/database').pool.end(() => {
-                logger.info('Database connections closed.');
-                process.exit(0);
-            });
-        }).catch((error) => {
-            logger.error('Error closing Redis connection:', error);
-            
-            require('./config/database').pool.end(() => {
-                logger.info('Database connections closed.');
-                process.exit(0);
+            redisClient.quit().then(() => {
+                logger.info('Redis connection closed.');
+                
+                require('./config/database').pool.end(() => {
+                    logger.info('Database connections closed.');
+                    process.exit(0);
+                });
+            }).catch((error) => {
+                logger.error('Error closing Redis connection:', error);
+                
+                require('./config/database').pool.end(() => {
+                    logger.info('Database connections closed.');
+                    process.exit(0);
+                });
             });
         });
     });
@@ -189,6 +298,8 @@ function gracefulShutdown(signal) {
         process.exit(1);
     }, 30000);
 }
+
+NotificationScheduler.startScheduledTasks();
 
 app.use((req, res, next) => {
     const origin = req.headers.origin;
@@ -255,6 +366,9 @@ const setupScheduledTasks = () => {
         }
     }, 15 * 60 * 1000); // 15 minutes
 
+    // Initialize notification scheduler
+    NotificationScheduler.startScheduledTasks();
+
     logger.info('Scheduled tasks initialized');
 };
 
@@ -280,15 +394,16 @@ const startServer = async () => {
 
         setupScheduledTasks();
 
-        const server = app.listen(PORT, '0.0.0.0', () => {
-            logger.info(`Farmheart API server running on port ${PORT}`);
+        httpServer.listen(PORT, '0.0.0.0', () => {
+            logger.info(`🚀 Farmheart API server running on port ${PORT}`);
+            logger.info(`🔌 Socket.IO server ready for real-time notifications`);
             logger.info(`Environment: ${process.env.NODE_ENV}`);
             logger.info(`Allowed origins: ${allowedOrigins.join(', ')}`);
             logger.info(`Debug endpoint: http://localhost:${PORT}/debug/cors`);
         });
 
-        global.server = server;
-        return server;
+        global.server = httpServer;
+        return httpServer;
 
     } catch (error) {
         logger.error('Failed to start server:', error);

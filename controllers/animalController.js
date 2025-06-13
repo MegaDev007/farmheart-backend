@@ -3,6 +3,7 @@ const AnimalService = require('../services/animalService');
 const Animal = require('../models/animal');
 const logger = require('../utils/logger');
 const { pool } = require('../config/database'); 
+const NotificationService = require('../services/notificationService');
 
 class AnimalController {
 
@@ -55,6 +56,7 @@ class AnimalController {
         try {
             const { slObjectKey } = req.params;
             const statsData = req.body;
+    
 
             const animal = await AnimalService.updateAnimalStats(slObjectKey, statsData);
 

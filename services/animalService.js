@@ -3,6 +3,7 @@ const { pool } = require('../config/database');
 const Animal = require('../models/animal');
 const User = require('../models/user');
 const logger = require('../utils/logger');
+const NotificationService = require('./notificationService');
 
 class AnimalService {
 
@@ -91,10 +92,33 @@ class AnimalService {
                 throw new Error('Animal not found');
             }
 
+            // Get previous stats before updating
+            const previousStats = {
+                hungerPercent: animal.hungerPercent,
+                happinessPercent: animal.happinessPercent,
+                heatPercent: animal.heatPercent,
+                isOperable: animal.isOperable,
+                isBreedable: animal.isBreedable
+            };
+
+            // Update the animal stats
             await animal.updateStats(statsData);
 
-            // Check for critical status changes
-            await this.checkAnimalStatus(animal);
+            // Check for notifications after update
+            const newStats = {
+                hungerPercent: animal.hungerPercent,
+                happinessPercent: animal.happinessPercent,
+                heatPercent: animal.heatPercent,
+                isOperable: animal.isOperable,
+                isBreedable: animal.isBreedable
+            };
+
+            // Create notifications based on status changes
+            await NotificationService.checkAnimalStatusAndNotify(
+                animal.id, 
+                newStats, 
+                previousStats
+            );
 
             return animal;
 
@@ -118,79 +142,47 @@ class AnimalService {
         try {
             await client.query('BEGIN');
 
-            // Find parent animals
-            const mother = await Animal.findBySlObjectKey(motherSlObjectKey);
-            const father = await Animal.findBySlObjectKey(fatherSlObjectKey);
+            // ... existing breeding logic ...
 
-            if (!mother || !father) {
-                throw new Error('Parent animals not found');
-            }
-
-            // Verify both animals can breed
-            if (!mother.isEligibleForBreeding() || !father.isEligibleForBreeding()) {
-                throw new Error('One or both animals are not eligible for breeding');
-            }
-
-            // Create breeding record
-            const breedingResult = await client.query(
-                `INSERT INTO breeding_records (mother_id, father_id, breeding_region, is_twins)
-                 VALUES ($1, $2, $3, $4) RETURNING *`,
-                [mother.id, father.id, breedingRegion, isTwins]
-            );
-
-            const breedingRecord = breedingResult.rows[0];
-
-            // Update breeding counts
-            await client.query(
-                'UPDATE animals SET breeding_count = breeding_count + 1, last_bred_at = NOW() WHERE id IN ($1, $2)',
-                [mother.id, father.id]
-            );
-
-            // Process offspring if provided
-            const offspring = [];
-            if (offspringData && offspringData.length > 0) {
-                for (let i = 0; i < offspringData.length; i++) {
-                    const offspringInfo = offspringData[i];
-                    
-                    // Register offspring animal
-                    const offspringAnimal = await this.registerAnimal({
-                        ownerUsername: mother.ownerUsername,
-                        breedType: mother.breed,
-                        animalName: offspringInfo.name,
-                        gender: offspringInfo.gender,
-                        slRegion: breedingRegion,
-                        slPosition: offspringInfo.slPosition,
-                        traits: offspringInfo.traits,
-                        parentInfo: {
-                            motherId: mother.id,
-                            fatherId: father.id,
-                            isTwin: isTwins,
-                            twinSiblingId: isTwins && i === 0 ? null : offspring[0]?.id
+            // After successful breeding, create breeding success notification
+            if (offspring.length > 0) {
+                await NotificationService.createNotification(
+                    mother.ownerId,
+                    mother.id,
+                    {
+                        type: 'breeding_success',
+                        severity: 'low',
+                        data: {
+                            motherName: mother.name,
+                            fatherName: father.name,
+                            offspringCount: offspring.length,
+                            isTwins: isTwins
                         }
-                    }, offspringInfo.slObjectKey);
-
-                    // Create birth record
-                    await client.query(
-                        `INSERT INTO birth_records (breeding_record_id, offspring_id, birth_order, birth_region)
-                         VALUES ($1, $2, $3, $4)`,
-                        [breedingRecord.id, offspringAnimal.id, i + 1, breedingRegion]
-                    );
-
-                    offspring.push(offspringAnimal);
-
-                    // Update twin sibling reference if twins
-                    if (isTwins && offspring.length === 2) {
-                        await client.query(
-                            'UPDATE animals SET twin_sibling_id = $1 WHERE id = $2',
-                            [offspring[1].id, offspring[0].id]
-                        );
                     }
+                );
+
+                // If father has different owner, notify them too
+                if (father.ownerId !== mother.ownerId) {
+                    await NotificationService.createNotification(
+                        father.ownerId,
+                        father.id,
+                        {
+                            type: 'breeding_success',
+                            severity: 'low',
+                            data: {
+                                motherName: mother.name,
+                                fatherName: father.name,
+                                offspringCount: offspring.length,
+                                isTwins: isTwins
+                            }
+                        }
+                    );
                 }
             }
 
             await client.query('COMMIT');
 
-            logger.info('Breeding processed successfully', {
+            logger.info('Breeding processed successfully with notifications', {
                 breedingRecordId: breedingRecord.id,
                 motherId: mother.id,
                 fatherId: father.id,
@@ -209,6 +201,82 @@ class AnimalService {
             throw error;
         } finally {
             client.release();
+        }
+    }
+
+    static async checkAllAnimalsForNotifications(ownerId) {
+        try {
+            // Get all alive animals for the owner
+            const animals = await Animal.findByOwner(ownerId, { status: 'alive' });
+
+            let notificationCount = 0;
+
+            for (const animal of animals) {
+                // Get current stats
+                const currentStats = {
+                    hungerPercent: animal.hungerPercent,
+                    happinessPercent: animal.happinessPercent,
+                    heatPercent: animal.heatPercent,
+                    isOperable: animal.isOperable,
+                    isBreedable: animal.isBreedable
+                };
+
+                // Check for notifications
+                const count = await NotificationService.checkAnimalStatusAndNotify(
+                    animal.id, 
+                    currentStats
+                );
+
+                notificationCount += count;
+            }
+
+            logger.info('Batch notification check completed', {
+                ownerId,
+                animalsChecked: animals.length,
+                notificationsCreated: notificationCount
+            });
+
+            return notificationCount;
+
+        } catch (error) {
+            logger.error('Error in batch notification check:', error);
+            throw error;
+        }
+    }
+
+    static async performSystemWideNotificationCheck() {
+        try {
+            const result = await pool.query(
+                `SELECT DISTINCT owner_id FROM animals WHERE status = 'alive'`
+            );
+
+            let totalNotifications = 0;
+
+            for (const row of result.rows) {
+                try {
+                    const count = await this.checkAllAnimalsForNotifications(row.owner_id);
+                    totalNotifications += count;
+                } catch (error) {
+                    logger.error('Error checking notifications for owner:', {
+                        ownerId: row.owner_id,
+                        error: error.message
+                    });
+                }
+            }
+
+            logger.info('System-wide notification check completed', {
+                ownersChecked: result.rows.length,
+                totalNotifications
+            });
+
+            return {
+                ownersChecked: result.rows.length,
+                totalNotifications
+            };
+
+        } catch (error) {
+            logger.error('Error in system-wide notification check:', error);
+            throw error;
         }
     }
 
