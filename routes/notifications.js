@@ -9,9 +9,10 @@ const { generalLimiter } = require('../middleware/rateLimiting');
 // All notification routes require authentication
 router.use(authenticateToken);
 
-// Get user's notifications
+// Get user's notifications (remove duplicate route)
 router.get('/', 
-    generalLimiter, (req, res, next) => {
+    generalLimiter, 
+    (req, res, next) => {
         console.log('Notification request received:', {
             method: req.method,
             path: req.path,
@@ -24,28 +25,10 @@ router.get('/',
     NotificationController.getNotifications
 );
 
-// Get user's notifications
-router.get('/', 
-    generalLimiter, 
-    NotificationController.getNotifications
-);
-
 // Get notification statistics
 router.get('/stats', 
     generalLimiter, 
     NotificationController.getNotificationStats
-);
-
-// Get notification preferences
-router.get('/preferences', 
-    generalLimiter, 
-    NotificationController.getNotificationPreferences
-);
-
-// Update notification preferences
-router.put('/preferences', 
-    generalLimiter, 
-    NotificationController.updateNotificationPreferences
 );
 
 // Mark all notifications as read

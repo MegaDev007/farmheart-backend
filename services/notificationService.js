@@ -408,6 +408,24 @@ class NotificationService {
         }
     }
 
+    // Get previous animal stats for comparison
+    static async getPreviousAnimalStats(animalId) {
+        try {
+            const result = await pool.query(
+                `SELECT * FROM animal_stat_history 
+                 WHERE animal_id = $1 
+                 ORDER BY recorded_at DESC 
+                 LIMIT 1`,
+                [animalId]
+            );
+
+            return result.rows.length > 0 ? result.rows[0] : null;
+        } catch (error) {
+            logger.warn('Could not get previous stats:', error.message);
+            return null;
+        }
+    }
+
     // Record current animal stats for future comparison
     static async recordAnimalStats(animalId, stats, animalStatus = 'alive') {
         try {
@@ -608,6 +626,102 @@ static async getUserNotifications(userId, limit = 50) {
             };
         }
     }
+
+        // Bulk mark as read
+        static async bulkMarkAsRead(userId, notificationIds) {
+            try {
+                if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
+                    return 0;
+                }
+    
+                // Convert to integers and filter out invalid IDs
+                const validIds = notificationIds
+                    .map(id => parseInt(id))
+                    .filter(id => !isNaN(id) && id > 0);
+    
+                if (validIds.length === 0) {
+                    return 0;
+                }
+    
+                const placeholders = validIds.map((_, index) => `$${index + 2}`).join(', ');
+                const query = `
+                    UPDATE notifications 
+                    SET is_read = true, read_at = NOW()
+                    WHERE user_id = $1 AND id IN (${placeholders}) AND is_read = false AND is_dismissed = false
+                    RETURNING id
+                `;
+    
+                const result = await pool.query(query, [userId, ...validIds]);
+                const updatedCount = result.rows.length;
+    
+                // Send real-time update for stats
+                if (updatedCount > 0) {
+                    try {
+                        const stats = await NotificationService.getNotificationStats(userId);
+                        const io = global.io;
+                        if (io) {
+                            io.to(`user_${userId}`).emit('notification_stats', stats);
+                        }
+                    } catch (realtimeError) {
+                        console.log('Could not send real-time stats update:', realtimeError.message);
+                    }
+                }
+    
+                return updatedCount;
+            } catch (error) {
+                logger.error('Error bulk marking notifications as read:', error);
+                throw error;
+            }
+        }
+    
+        // Bulk dismiss
+        static async bulkDismiss(userId, notificationIds) {
+            try {
+                if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
+                    return 0;
+                }
+    
+                // Convert to integers and filter out invalid IDs
+                const validIds = notificationIds
+                    .map(id => parseInt(id))
+                    .filter(id => !isNaN(id) && id > 0);
+    
+                if (validIds.length === 0) {
+                    return 0;
+                }
+    
+                const placeholders = validIds.map((_, index) => `$${index + 2}`).join(', ');
+                const query = `
+                    UPDATE notifications 
+                    SET is_dismissed = true, dismissed_at = NOW()
+                    WHERE user_id = $1 AND id IN (${placeholders}) AND is_dismissed = false
+                    RETURNING id
+                `;
+    
+                const result = await pool.query(query, [userId, ...validIds]);
+                const updatedCount = result.rows.length;
+    
+                // Send real-time update for stats
+                if (updatedCount > 0) {
+                    try {
+                        const stats = await NotificationService.getNotificationStats(userId);
+                        const io = global.io;
+                        if (io) {
+                            io.to(`user_${userId}`).emit('notification_stats', stats);
+                        }
+                    } catch (realtimeError) {
+                        console.log('Could not send real-time stats update:', realtimeError.message);
+                    }
+                }
+    
+                return updatedCount;
+            } catch (error) {
+                logger.error('Error bulk marking notifications as read:', error);
+                throw error;
+            }
+        }
 }
+
+
 
 module.exports = NotificationService;

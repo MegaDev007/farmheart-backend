@@ -1,4 +1,4 @@
-// server.js - Add Socket.IO support
+// server.js - Add Socket.IO support with WebSocket fixes
 require('dotenv').config();
 
 const express = require('express');
@@ -61,21 +61,38 @@ const corsOptions = {
     optionsSuccessStatus: 200
 };
 
-// Set up Socket.IO with CORS
+// Set up Socket.IO with enhanced configuration for production
 const io = new Server(httpServer, {
     cors: {
         origin: allowedOrigins,
         methods: ["GET", "POST"],
         credentials: true
     },
-    transports: ['websocket', 'polling']
+    transports: ['websocket', 'polling'],
+    allowEIO3: true, // Enable Engine.IO v3 compatibility
+    pingTimeout: 60000, // Increase ping timeout
+    pingInterval: 25000, // Ping interval
+    upgradeTimeout: 30000, // WebSocket upgrade timeout
+    maxHttpBufferSize: 1e6, // 1MB buffer size
+    allowRequest: (req, callback) => {
+        // Additional validation for Socket.IO connections
+        const origin = req.headers.origin;
+        const allowed = !origin || allowedOrigins.includes(origin);
+        
+        if (!allowed) {
+            console.log(`❌ Socket.IO BLOCKED: ${origin}`);
+            return callback('Origin not allowed', false);
+        }
+        
+        console.log(`✅ Socket.IO ALLOWED: ${origin || 'no-origin'}`);
+        callback(null, true);
+    }
 });
-
 
 // Make io available globally for notifications
 global.io = io;
 
-// Security middleware
+// Enhanced security middleware with WebSocket considerations
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
@@ -83,6 +100,7 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'"],
             scriptSrc: ["'self'"],
             imgSrc: ["'self'", "data:", "https:"],
+            connectSrc: ["'self'", "wss:", "ws:"], // Allow WebSocket connections
         },
     },
     crossOriginEmbedderPolicy: false
@@ -97,20 +115,26 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(generalLimiter);
 app.use(speedLimiter);
 
-// Request logging
+// Request logging with WebSocket upgrade detection
 app.use((req, res, next) => {
-    console.log(`${req.method} ${req.url} - Origin: ${req.headers.origin || 'none'}`);
+    const isUpgrade = req.headers.upgrade === 'websocket';
+    const logMessage = isUpgrade 
+        ? `WebSocket UPGRADE ${req.url} - Origin: ${req.headers.origin || 'none'}`
+        : `${req.method} ${req.url} - Origin: ${req.headers.origin || 'none'}`;
+    
+    console.log(logMessage);
     logger.info('Request received', {
         method: req.method,
         url: req.url,
         ip: req.ip,
         origin: req.headers.origin,
-        userAgent: req.get('User-Agent')
+        userAgent: req.get('User-Agent'),
+        isWebSocketUpgrade: isUpgrade
     });
     next();
 });
 
-// Health check endpoint
+// Health check endpoint with Socket.IO status
 app.get('/health', async (req, res) => {
     let redisStatus = 'disconnected';
     try {
@@ -119,6 +143,13 @@ app.get('/health', async (req, res) => {
     } catch (error) {
         redisStatus = 'error';
     }
+
+    // Check Socket.IO engine status
+    const socketIOStatus = {
+        connected: true,
+        clientsCount: io.engine.clientsCount || 0,
+        transports: ['websocket', 'polling']
+    };
 
     res.json({
         success: true,
@@ -130,7 +161,20 @@ app.get('/health', async (req, res) => {
         services: {
             database: 'connected',
             redis: redisStatus,
-            socketio: 'connected'
+            socketio: socketIOStatus
+        }
+    });
+});
+
+// Socket.IO specific health check
+app.get('/socket-health', (req, res) => {
+    res.json({
+        success: true,
+        socketio: {
+            status: 'running',
+            clients: io.engine.clientsCount || 0,
+            transports: ['websocket', 'polling'],
+            allowedOrigins: allowedOrigins
         }
     });
 });
@@ -159,28 +203,42 @@ app.use('*', (req, res) => {
 // Global error handler
 app.use(errorHandler);
 
-// Socket.IO Connection Handling
+// Enhanced Socket.IO Connection Handling
 io.on('connection', (socket) => {
-    console.log('🔌 New client connected:', socket.id);
+    console.log('🔌 New client connected:', socket.id, 'Transport:', socket.conn.transport.name);
+    
+    // Monitor transport upgrades
+    socket.conn.on('upgrade', () => {
+        console.log('🚀 Client upgraded to:', socket.conn.transport.name);
+    });
+    
+    socket.conn.on('upgradeError', (err) => {
+        console.error('❌ Client upgrade error:', err.message);
+    });
     
     // User authentication and room joining
     socket.on('authenticate', async (data) => {
         try {
             const { token, userId } = data;
             
+            console.log(`🔐 Authentication attempt for user ${userId}`);
+            
             // Verify JWT token here if needed
+            // const jwt = require('jsonwebtoken');
             // const decoded = jwt.verify(token, process.env.JWT_SECRET);
             
             if (userId) {
                 socket.userId = userId;
                 socket.join(`user_${userId}`);
-                console.log(`✅ User ${userId} authenticated and joined room`);
+                console.log(`✅ User ${userId} authenticated and joined room (Transport: ${socket.conn.transport.name})`);
                 
                 // Send confirmation
                 socket.emit('authenticated', {
                     success: true,
                     message: 'Connected to real-time notifications',
-                    userId: userId
+                    userId: userId,
+                    transport: socket.conn.transport.name,
+                    socketId: socket.id
                 });
                 
                 // Send any unread notification count
@@ -188,12 +246,16 @@ io.on('connection', (socket) => {
                     const NotificationService = require('./services/notificationService');
                     const stats = await NotificationService.getNotificationStats(userId);
                     socket.emit('notification_stats', stats);
+                    console.log(`📊 Sent notification stats to user ${userId}:`, stats);
                 } catch (error) {
                     console.error('Error getting notification stats:', error);
                 }
+            } else {
+                console.log('❌ Authentication failed: No userId provided');
+                socket.emit('auth_error', { message: 'User ID required' });
             }
         } catch (error) {
-            console.error('Authentication error:', error);
+            console.error('❌ Authentication error:', error);
             socket.emit('auth_error', { message: 'Authentication failed' });
         }
     });
@@ -204,6 +266,8 @@ io.on('connection', (socket) => {
             const { notificationId } = data;
             const userId = socket.userId;
             
+            console.log(`📖 Mark as read request: notification ${notificationId} by user ${userId}`);
+            
             if (userId && notificationId) {
                 const NotificationService = require('./services/notificationService');
                 await NotificationService.markAsRead(notificationId, userId);
@@ -212,10 +276,10 @@ io.on('connection', (socket) => {
                 const stats = await NotificationService.getNotificationStats(userId);
                 socket.emit('notification_stats', stats);
                 
-                console.log(`📖 Notification ${notificationId} marked as read by user ${userId}`);
+                console.log(`✅ Notification ${notificationId} marked as read by user ${userId}`);
             }
         } catch (error) {
-            console.error('Error marking notification as read:', error);
+            console.error('❌ Error marking notification as read:', error);
         }
     });
     
@@ -225,6 +289,8 @@ io.on('connection', (socket) => {
             const userId = socket.userId;
             const { limit = 20, unreadOnly = false } = data || {};
             
+            console.log(`📋 Get notifications request from user ${userId} (limit: ${limit}, unreadOnly: ${unreadOnly})`);
+            
             if (userId) {
                 const NotificationService = require('./services/notificationService');
                 const notifications = await NotificationService.getUserNotifications(userId, {
@@ -233,19 +299,40 @@ io.on('connection', (socket) => {
                 });
                 
                 socket.emit('notifications_list', notifications);
+                console.log(`📤 Sent ${notifications.notifications?.length || 0} notifications to user ${userId}`);
             }
         } catch (error) {
-            console.error('Error getting notifications:', error);
+            console.error('❌ Error getting notifications:', error);
             socket.emit('notifications_error', { message: 'Failed to get notifications' });
         }
     });
     
+    // Handle connection errors
+    socket.on('connect_error', (error) => {
+        console.error('🔌 Socket connection error:', error.message);
+    });
+    
     // Handle disconnection
-    socket.on('disconnect', () => {
-        console.log('🔌 Client disconnected:', socket.id);
+    socket.on('disconnect', (reason) => {
+        console.log('🔌 Client disconnected:', socket.id, 'Reason:', reason);
         if (socket.userId) {
-            console.log(`👋 User ${socket.userId} disconnected`);
+            console.log(`👋 User ${socket.userId} disconnected (${reason})`);
         }
+    });
+    
+    // Handle Socket.IO errors
+    socket.on('error', (error) => {
+        console.error('🔌 Socket error:', error);
+    });
+});
+
+// Monitor Socket.IO server events
+io.engine.on('connection_error', (err) => {
+    console.error('🔌 Socket.IO engine connection error:', {
+        message: err.message,
+        description: err.description,
+        context: err.context,
+        type: err.type
     });
 });
 
@@ -255,6 +342,9 @@ process.on('SIGINT', gracefulShutdown);
 
 function gracefulShutdown(signal) {
     logger.info(`Received ${signal}. Starting graceful shutdown...`);
+    
+    // Close Socket.IO connections gracefully
+    io.disconnectSockets();
     
     httpServer.close(() => {
         logger.info('HTTP server closed.');
@@ -341,8 +431,16 @@ const startServer = async () => {
         httpServer.listen(PORT, '0.0.0.0', () => {
             logger.info(`🚀 Farmheart API server running on port ${PORT}`);
             logger.info(`🔌 Socket.IO server ready for real-time notifications`);
+            logger.info(`🌐 WebSocket endpoint: wss://api.farmheartvirtual.com/socket.io/`);
             logger.info(`Environment: ${process.env.NODE_ENV}`);
             logger.info(`Allowed origins: ${allowedOrigins.join(', ')}`);
+            
+            // Log Socket.IO configuration
+            console.log('🔧 Socket.IO Configuration:');
+            console.log('   - Transports: websocket, polling');
+            console.log('   - Ping Timeout: 60s');
+            console.log('   - Ping Interval: 25s');
+            console.log('   - Upgrade Timeout: 30s');
         });
 
         global.server = httpServer;

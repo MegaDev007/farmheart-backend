@@ -4,48 +4,72 @@ const logger = require('../utils/logger');
 
 class NotificationController {
 
-
-// Get user's notifications
-static async getNotifications(req, res, next) {
-    try {
-        // Validate that user exists in request
-        if (!req.user || !req.user.userId) {
-            return res.status(401).json({
-                success: false,
-                error: 'User authentication required'
-            });
-        }
-
-        const { userId } = req.user;
-        const { limit = '10' } = req.query;
-
-        // Validate limit parameter
-        const limitNum = parseInt(limit);
-        if (isNaN(limitNum) || limitNum < 1 || limitNum > 1000) {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid limit parameter (must be 1-1000)'
-            });
-        }
-
-        console.log('Getting notifications for user:', userId, 'with limit:', limitNum);
-
-        const result = await NotificationService.getUserNotifications(userId, limitNum);
-
-        res.json({
-            success: true,
-            data: {
-                notifications: result.notifications || [],
-                totalCount: result.totalCount || 0,
-                unreadCount: result.unreadCount || 0
+    // Get user's notifications with pagination
+    static async getNotifications(req, res, next) {
+        try {
+            // Validate that user exists in request
+            if (!req.user || !req.user.userId) {
+                return res.status(401).json({
+                    success: false,
+                    error: 'User authentication required'
+                });
             }
-        });
 
-    } catch (error) {
-        console.error('Error in getNotifications:', error);
-        next(error);
+            const { userId } = req.user;
+            const { 
+                limit = '10', 
+                offset = '0',
+                unreadOnly = 'false',
+                category = null
+            } = req.query;
+
+            // Validate parameters
+            const limitNum = parseInt(limit);
+            const offsetNum = parseInt(offset);
+            const unreadOnlyBool = unreadOnly === 'true';
+
+            if (isNaN(limitNum) || limitNum < 1 || limitNum > 50) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid limit parameter (must be 1-50)'
+                });
+            }
+
+            if (isNaN(offsetNum) || offsetNum < 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid offset parameter (must be >= 0)'
+                });
+            }
+
+            console.log('Getting notifications for user:', userId, 'limit:', limitNum, 'offset:', offsetNum, 'unreadOnly:', unreadOnlyBool, 'category:', category);
+
+            const result = await NotificationService.getUserNotifications(userId, {
+                limit: limitNum,
+                offset: offsetNum,
+                unreadOnly: unreadOnlyBool,
+                category
+            });
+
+            res.json({
+                success: true,
+                data: {
+                    notifications: result.notifications || [],
+                    pagination: {
+                        limit: limitNum,
+                        offset: offsetNum,
+                        totalCount: result.totalCount || 0,
+                        hasMore: result.hasMore || false
+                    },
+                    unreadCount: result.unreadCount || 0
+                }
+            });
+
+        } catch (error) {
+            console.error('Error in getNotifications:', error);
+            next(error);
+        }
     }
-}
 
     // Get notification statistics
     static async getNotificationStats(req, res, next) {
@@ -70,28 +94,41 @@ static async getNotifications(req, res, next) {
             const { notificationId } = req.params;
             const { userId } = req.user;
 
-            console.log("-----------notificationID", notificationId);
-            console.log("-----------userId", userId);
+            console.log('-----------Controller markAsRead called');
+            console.log('-----------notificationId from params:', notificationId);
+            console.log('-----------userId from user:', userId);
 
             const notification = await NotificationService.markAsRead(
-                parseInt(notificationId), 
+                notificationId,
                 userId
             );
 
             if (!notification) {
+                console.log('-----------No notification returned from service');
                 return res.status(404).json({
                     success: false,
-                    error: 'Notification not found or already read'
+                    error: 'Notification not found or access denied'
                 });
             }
 
+            console.log('-----------Successfully processed mark as read:', notification.id);
+
+            // Always return success if we got a notification back
             res.json({
                 success: true,
                 message: 'Notification marked as read',
-                data: { notification }
+                data: { 
+                    notification: {
+                        id: notification.id,
+                        isRead: notification.is_read,
+                        readAt: notification.read_at,
+                        title: notification.title
+                    }
+                }
             });
 
         } catch (error) {
+            console.error('-----------Controller error:', error);
             next(error);
         }
     }
@@ -144,51 +181,143 @@ static async getNotifications(req, res, next) {
         }
     }
 
-    // Get user notification preferences
-    static async getNotificationPreferences(req, res, next) {
+    // Bulk mark as read
+    static async bulkMarkAsRead(req, res, next) {
         try {
             const { userId } = req.user;
+            const { notificationIds } = req.body;
 
-            const preferences = await NotificationService.getUserNotificationPreferences(userId);
+            // Validate input
+            if (!Array.isArray(notificationIds)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'notificationIds must be an array'
+                });
+            }
+
+            if (notificationIds.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'notificationIds array cannot be empty'
+                });
+            }
+
+            if (notificationIds.length > 100) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Cannot process more than 100 notifications at once'
+                });
+            }
+
+            const updatedCount = await NotificationService.bulkMarkAsRead(userId, notificationIds);
 
             res.json({
                 success: true,
-                data: { preferences }
+                message: `${updatedCount} notifications marked as read`,
+                data: { 
+                    updatedCount,
+                    requestedCount: notificationIds.length,
+                    skippedCount: notificationIds.length - updatedCount
+                }
             });
 
         } catch (error) {
+            console.error('Error in bulkMarkAsRead:', error);
             next(error);
         }
     }
 
-    // Update user notification preferences
-    static async updateNotificationPreferences(req, res, next) {
+    // Bulk dismiss
+    static async bulkDismiss(req, res, next) {
         try {
             const { userId } = req.user;
-            const { preferences } = req.body;
+            const { notificationIds } = req.body;
 
-            if (!Array.isArray(preferences)) {
+            // Validate input
+            if (!Array.isArray(notificationIds)) {
                 return res.status(400).json({
                     success: false,
-                    error: 'Preferences must be an array'
+                    error: 'notificationIds must be an array'
                 });
             }
 
-            // Validate preference structure
-            for (const pref of preferences) {
-                if (!pref.name || typeof pref.inAppEnabled !== 'boolean' || typeof pref.emailEnabled !== 'boolean') {
-                    return res.status(400).json({
-                        success: false,
-                        error: 'Invalid preference structure'
-                    });
-                }
+            if (notificationIds.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'notificationIds array cannot be empty'
+                });
             }
 
-            await NotificationService.updateUserNotificationPreferences(userId, preferences);
+            if (notificationIds.length > 100) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Cannot process more than 100 notifications at once'
+                });
+            }
+
+            const updatedCount = await NotificationService.bulkDismiss(userId, notificationIds);
 
             res.json({
                 success: true,
-                message: 'Notification preferences updated successfully'
+                message: `${updatedCount} notifications dismissed`,
+                data: { 
+                    updatedCount,
+                    requestedCount: notificationIds.length,
+                    skippedCount: notificationIds.length - updatedCount
+                }
+            });
+
+        } catch (error) {
+            console.error('Error in bulkDismiss:', error);
+            next(error);
+        }
+    }
+
+    // Get notifications by animal
+    static async getNotificationsByAnimal(req, res, next) {
+        try {
+            const { userId } = req.user;
+            const { animalId } = req.params;
+            const { limit = 10 } = req.query;
+
+            // Verify animal ownership
+            const { pool } = require('../config/database');
+            const ownershipResult = await pool.query(
+                'SELECT id FROM animals WHERE id = $1 AND owner_id = $2',
+                [animalId, userId]
+            );
+
+            if (ownershipResult.rows.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Animal not found or access denied'
+                });
+            }
+
+            const result = await pool.query(
+                `SELECT n.*
+                 FROM notifications n
+                 WHERE n.user_id = $1 AND n.animal_id = $2
+                 ORDER BY n.created_at DESC
+                 LIMIT $3`,
+                [userId, animalId, parseInt(limit)]
+            );
+
+            const notifications = result.rows.map(row => ({
+                id: row.id,
+                title: row.title,
+                message: row.message,
+                severity: row.severity,
+                category: row.category,
+                isRead: row.is_read,
+                isDismissed: row.is_dismissed,
+                createdAt: row.created_at,
+                metadata: row.metadata
+            }));
+
+            res.json({
+                success: true,
+                data: { notifications }
             });
 
         } catch (error) {
@@ -224,144 +353,6 @@ static async getNotifications(req, res, next) {
                 success: true,
                 message: 'Test notification created',
                 data: { notification }
-            });
-
-        } catch (error) {
-            next(error);
-        }
-    }
-
-    // Get notifications by animal
-    static async getNotificationsByAnimal(req, res, next) {
-        try {
-            const { userId } = req.user;
-            const { animalId } = req.params;
-            const { limit = 10 } = req.query;
-
-            // Verify animal ownership
-            const { pool } = require('../config/database');
-            const ownershipResult = await pool.query(
-                'SELECT id FROM animals WHERE id = $1 AND owner_id = $2',
-                [animalId, userId]
-            );
-
-            if (ownershipResult.rows.length === 0) {
-                return res.status(404).json({
-                    success: false,
-                    error: 'Animal not found or access denied'
-                });
-            }
-
-            const result = await pool.query(
-                `SELECT n.*, nt.name as type_name, nt.display_name as type_display, nt.category
-                 FROM notifications n
-                 JOIN notification_types nt ON n.notification_type_id = nt.id
-                 WHERE n.user_id = $1 AND n.animal_id = $2
-                 ORDER BY n.created_at DESC
-                 LIMIT $3`,
-                [userId, animalId, parseInt(limit)]
-            );
-
-            const notifications = result.rows.map(row => ({
-                id: row.id,
-                title: row.title,
-                message: row.message,
-                severity: row.severity,
-                category: row.category,
-                typeName: row.type_name,
-                typeDisplay: row.type_display,
-                isRead: row.is_read,
-                isDismissed: row.is_dismissed,
-                createdAt: row.created_at,
-                metadata: row.metadata
-            }));
-
-            res.json({
-                success: true,
-                data: { notifications }
-            });
-
-        } catch (error) {
-            next(error);
-        }
-    }
-
-    // Delete old notifications (admin only or automated cleanup)
-    static async cleanupNotifications(req, res, next) {
-        try {
-            const { daysOld = 30 } = req.query;
-
-            const deletedCount = await NotificationService.cleanupOldNotifications(parseInt(daysOld));
-
-            res.json({
-                success: true,
-                message: `${deletedCount} old notifications cleaned up`,
-                data: { deletedCount }
-            });
-
-        } catch (error) {
-            next(error);
-        }
-    }
-
-    // Bulk operations
-    static async bulkMarkAsRead(req, res, next) {
-        try {
-            const { userId } = req.user;
-            const { notificationIds } = req.body;
-
-            if (!Array.isArray(notificationIds)) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'notificationIds must be an array'
-                });
-            }
-
-            const { pool } = require('../config/database');
-            const result = await pool.query(
-                `UPDATE notifications 
-                 SET is_read = true, read_at = NOW()
-                 WHERE id = ANY($1) AND user_id = $2 AND is_read = false
-                 RETURNING id`,
-                [notificationIds, userId]
-            );
-
-            res.json({
-                success: true,
-                message: `${result.rowCount} notifications marked as read`,
-                data: { updatedCount: result.rowCount }
-            });
-
-        } catch (error) {
-            next(error);
-        }
-    }
-
-    static async bulkDismiss(req, res, next) {
-        try {
-            const { userId } = req.user;
-            const { notificationIds } = req.body;
-
-            if (!Array.isArray(notificationIds)) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'notificationIds must be an array'
-                });
-            }
-
-            const { pool } = require('../config/database');
-            const result = await pool.query(
-                `UPDATE notifications 
-                 SET is_dismissed = true, dismissed_at = NOW()
-                 WHERE id = ANY($1) AND user_id = $2
-                 RETURNING id`,
-                [notificationIds, userId]
-            );
-
-            res.json({
-                success: true,
-                message: `${result.rowCount} notifications dismissed`,
-                data: { updatedCount: result.rowCount }
             });
 
         } catch (error) {
