@@ -4,46 +4,48 @@ const logger = require('../utils/logger');
 
 class NotificationController {
 
-    // Get user's notifications
-    static async getNotifications(req, res, next) {
-        try {
-            const { userId } = req.user;
-            const {
-                unreadOnly = false,
-                category,
-                severity,
-                page = 1,
-                limit = 20
-            } = req.query;
 
-            const options = {
-                unreadOnly: unreadOnly === 'true',
-                category,
-                severity,
-                limit: parseInt(limit),
-                offset: (parseInt(page) - 1) * parseInt(limit)
-            };
-
-            const result = await NotificationService.getUserNotifications(userId, options);
-
-            res.json({
-                success: true,
-                data: {
-                    notifications: result.notifications,
-                    pagination: {
-                        page: parseInt(page),
-                        limit: parseInt(limit),
-                        totalCount: result.totalCount,
-                        totalPages: Math.ceil(result.totalCount / parseInt(limit))
-                    },
-                    unreadCount: result.unreadCount
-                }
+// Get user's notifications
+static async getNotifications(req, res, next) {
+    try {
+        // Validate that user exists in request
+        if (!req.user || !req.user.userId) {
+            return res.status(401).json({
+                success: false,
+                error: 'User authentication required'
             });
-
-        } catch (error) {
-            next(error);
         }
+
+        const { userId } = req.user;
+        const { limit = '10' } = req.query;
+
+        // Validate limit parameter
+        const limitNum = parseInt(limit);
+        if (isNaN(limitNum) || limitNum < 1 || limitNum > 1000) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid limit parameter (must be 1-1000)'
+            });
+        }
+
+        console.log('Getting notifications for user:', userId, 'with limit:', limitNum);
+
+        const result = await NotificationService.getUserNotifications(userId, limitNum);
+
+        res.json({
+            success: true,
+            data: {
+                notifications: result.notifications || [],
+                totalCount: result.totalCount || 0,
+                unreadCount: result.unreadCount || 0
+            }
+        });
+
+    } catch (error) {
+        console.error('Error in getNotifications:', error);
+        next(error);
     }
+}
 
     // Get notification statistics
     static async getNotificationStats(req, res, next) {
@@ -67,6 +69,9 @@ class NotificationController {
         try {
             const { notificationId } = req.params;
             const { userId } = req.user;
+
+            console.log("-----------notificationID", notificationId);
+            console.log("-----------userId", userId);
 
             const notification = await NotificationService.markAsRead(
                 parseInt(notificationId), 

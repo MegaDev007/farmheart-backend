@@ -1,4 +1,4 @@
-// server.js - FINAL CORS FIX
+// server.js - Add Socket.IO support
 require('dotenv').config();
 
 const express = require('express');
@@ -34,6 +34,7 @@ const logsDir = path.join(__dirname, 'logs');
 if (!fs.existsSync(logsDir)) {
     fs.mkdirSync(logsDir);
 }
+
 // CORS configuration for both Express and Socket.IO
 const allowedOrigins = [
     'http://localhost:3000',
@@ -47,15 +48,11 @@ const allowedOrigins = [
 
 const corsOptions = {
     origin: function (origin, callback) {
-        // Allow requests with no origin (mobile apps, Postman, etc.)
         if (!origin) return callback(null, true);
-        
         if (allowedOrigins.includes(origin)) {
             return callback(null, true);
         }
-        
         console.log(`❌ CORS BLOCKED: ${origin}`);
-        console.log(`✅ ALLOWED ORIGINS: ${allowedOrigins.join(', ')}`);
         return callback(new Error('Not allowed by CORS'), false);
     },
     credentials: true,
@@ -74,6 +71,7 @@ const io = new Server(httpServer, {
     transports: ['websocket', 'polling']
 });
 
+
 // Make io available globally for notifications
 global.io = io;
 
@@ -90,7 +88,7 @@ app.use(helmet({
     crossOriginEmbedderPolicy: false
 }));
 
-// General middleware
+app.use(cors(corsOptions));
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -110,17 +108,6 @@ app.use((req, res, next) => {
         userAgent: req.get('User-Agent')
     });
     next();
-});
-
-// Debug endpoint to check CORS
-app.get('/debug/cors', (req, res) => {
-    res.json({
-        message: 'CORS Debug Endpoint',
-        origin: req.headers.origin,
-        allowedOrigins: allowedOrigins,
-        isAllowed: allowedOrigins.includes(req.headers.origin),
-        timestamp: new Date().toISOString()
-    });
 });
 
 // Health check endpoint
@@ -299,49 +286,6 @@ function gracefulShutdown(signal) {
     }, 30000);
 }
 
-NotificationScheduler.startScheduledTasks();
-
-app.use((req, res, next) => {
-    const origin = req.headers.origin;
-    
-    // Log all CORS-related info
-    console.log('=== CORS DEBUG ===');
-    console.log(`Method: ${req.method}`);
-    console.log(`URL: ${req.url}`);
-    console.log(`Origin: ${origin || 'none'}`);
-    console.log(`Is Preflight: ${req.method === 'OPTIONS'}`);
-    console.log(`Is Origin Allowed: ${allowedOrigins.includes(origin)}`);
-    
-    // Log response headers that will be sent
-    res.on('finish', () => {
-        console.log('Response Headers:');
-        console.log(`  Access-Control-Allow-Origin: ${res.get('Access-Control-Allow-Origin') || 'not set'}`);
-        console.log(`  Access-Control-Allow-Credentials: ${res.get('Access-Control-Allow-Credentials') || 'not set'}`);
-        console.log('=== END CORS DEBUG ===\n');
-    });
-    
-    next();
-});
-
-// Test endpoint specifically for CORS
-app.get('/cors-test', (req, res) => {
-    res.json({
-        success: true,
-        message: 'CORS test successful',
-        requestOrigin: req.headers.origin,
-        allowedOrigins: allowedOrigins,
-        isOriginAllowed: allowedOrigins.includes(req.headers.origin),
-        headers: req.headers,
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Add preflight handler for login specifically
-app.options('/api/v1/auth/login', (req, res) => {
-    console.log('Preflight request for login endpoint');
-    res.status(200).end();
-});
-
 // Scheduled tasks
 const setupScheduledTasks = () => {
     setInterval(async () => {
@@ -399,7 +343,6 @@ const startServer = async () => {
             logger.info(`🔌 Socket.IO server ready for real-time notifications`);
             logger.info(`Environment: ${process.env.NODE_ENV}`);
             logger.info(`Allowed origins: ${allowedOrigins.join(', ')}`);
-            logger.info(`Debug endpoint: http://localhost:${PORT}/debug/cors`);
         });
 
         global.server = httpServer;

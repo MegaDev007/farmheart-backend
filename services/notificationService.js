@@ -7,8 +7,8 @@ class NotificationService {
     // Check and create notifications based on animal stats
     static async checkAnimalStatusAndNotify(animalId, newStats, previousStats = null) {
         try {
-            console.log("🔍 Checking animal ID:", animalId);
-            console.log("📊 New stats:", newStats);
+ //           console.log("🔍 Checking animal ID:", animalId);
+///            console.log("📊 New stats:", newStats);
 
             const animal = await NotificationService.getAnimalById(animalId);
             
@@ -17,15 +17,15 @@ class NotificationService {
                 return 0;
             }
 
-            console.log("🐴 Animal found:", animal.name || 'Unnamed Animal');
-            console.log("🏠 Animal status:", animal.status);
+ //           console.log("🐴 Animal found:", animal.name || 'Unnamed Animal');
+//            console.log("🏠 Animal status:", animal.status);
 
             // Get previous stats if not provided
             if (!previousStats) {
                 previousStats = await NotificationService.getPreviousAnimalStats(animalId);
             }
 
-            console.log("📈 Previous stats:", previousStats);
+ //           console.log("📈 Previous stats:", previousStats);
 
             // 🚨 IMPORTANT: Don't send notifications for pet animals
             if (animal.status === 'pet') {
@@ -205,14 +205,14 @@ class NotificationService {
             // Store current stats for future comparison (include animal status)
             await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
 
-            logger.info('Notification check completed:', {
-                animalId,
-                animalName: animal.name,
-                animalStatus: animal.status,
-                isOperable: newStats.isOperable,
-                notificationsCreated: createdCount,
-                notificationsSkipped: notificationsToCreate.length - createdCount
-            });
+            // logger.info('Notification check completed:', {
+            //     animalId,
+            //     animalName: animal.name,
+            //     animalStatus: animal.status,
+            //     isOperable: newStats.isOperable,
+            //     notificationsCreated: createdCount,
+            //     notificationsSkipped: notificationsToCreate.length - createdCount
+            // });
 
             return createdCount;
 
@@ -463,65 +463,64 @@ class NotificationService {
         return result;
     }
 
-    // Get user notifications with filtering
-    static async getUserNotifications(userId, options = {}) {
-        try {
-            const {
-                unreadOnly = false,
-                limit = 50,
-                offset = 0,
-                severity = null
-            } = options;
+// Get user notifications with filtering
+// Ultra simple version - replace the getUserNotifications method temporarily
+static async getUserNotifications(userId, limit = 50) {
+    try {
+        console.log('getUserNotifications called with userId:', userId, 'limit:', limit);
 
-            let query = `
-                SELECT n.*, a.name as animal_name
-                FROM notifications n
-                LEFT JOIN animals a ON n.animal_id = a.id
-                WHERE n.user_id = $1
-            `;
+        // Use string interpolation to avoid parameter binding issues (for debugging only)
+        const query = `
+            SELECT id, user_id, animal_id, title, message, severity, category, 
+                   is_read, is_dismissed, created_at, read_at, metadata
+            FROM notifications 
+            WHERE user_id = ${parseInt(userId)} AND is_dismissed = false
+            ORDER BY created_at DESC
+            LIMIT ${parseInt(limit)}
+        `;
 
-            const params = [userId];
-            let paramCount = 1;
+        console.log('Executing ultra simple query:', query);
 
-            if (unreadOnly) {
-                query += ` AND n.is_read = false`;
-            }
+        const result = await pool.query(query);
 
-            if (severity) {
-                query += ` AND n.severity = $${++paramCount}`;
-                params.push(severity);
-            }
+        const notifications = result.rows.map(row => ({
+            id: row.id,
+            title: row.title,
+            message: row.message,
+            severity: row.severity,
+            category: row.category,
+            animalId: row.animal_id,
+            animalName: null,
+            isRead: row.is_read,
+            isDismissed: row.is_dismissed,
+            createdAt: row.created_at,
+            readAt: row.read_at,
+            metadata: row.metadata
+        }));
 
-            query += ` ORDER BY n.created_at DESC LIMIT $${++paramCount} OFFSET $${++paramCount}`;
-            params.push(limit, offset);
+        console.log(`Found ${notifications.length} notifications for user ${userId}`);
 
-            const result = await pool.query(query, params);
+        return {
+            notifications,
+            totalCount: notifications.length,
+            unreadCount: notifications.filter(n => !n.is_read).length
+        };
 
-            // Get total count
-            let countQuery = `SELECT COUNT(*) FROM notifications WHERE user_id = $1`;
-            const countParams = [userId];
-
-            if (unreadOnly) {
-                countQuery += ` AND is_read = false`;
-            }
-
-            const countResult = await pool.query(countQuery, countParams);
-
-            return {
-                notifications: result.rows,
-                totalCount: parseInt(countResult.rows[0].count),
-                unreadCount: result.rows.filter(n => !n.is_read).length
-            };
-
-        } catch (error) {
-            logger.error('Error getting user notifications:', error);
-            return { notifications: [], totalCount: 0, unreadCount: 0 };
-        }
+    } catch (error) {
+        console.error('Database error in getUserNotifications:', error);
+        return { 
+            notifications: [], 
+            totalCount: 0, 
+            unreadCount: 0 
+        };
     }
+}
 
     // Mark notification as read
     static async markAsRead(notificationId, userId) {
         try {
+
+
             const result = await pool.query(
                 `UPDATE notifications 
                  SET is_read = true, read_at = NOW()
@@ -536,6 +535,47 @@ class NotificationService {
             throw error;
         }
     }
+
+
+       // Mark notification as dismiss
+       static async markAsDismissed(notificationId, userId) {
+        try {
+
+
+            const result = await pool.query(
+                `UPDATE notifications 
+                 SET is_dismissed = true, dismissed_at = NOW()
+                 WHERE id = $1 AND user_id = $2 AND is_dismissed = false
+                 RETURNING *`,
+                [notificationId, userId]
+            );
+
+            return result.rows.length > 0 ? result.rows[0] : null;
+        } catch (error) {
+            logger.error('Error marking notification as read:', error);
+            throw error;
+        }
+    }
+
+    // // Mark notification as all read
+    // static async markAllAsRead(notificationId, userId) {
+    //     try {
+
+
+    //         const result = await pool.query(
+    //             `UPDATE notifications 
+    //              SET is_read = true, read_at = NOW()
+    //              WHERE id = $1 AND user_id = $2 AND is_read = false
+    //              RETURNING *`,
+    //             [notificationId, userId]
+    //         );
+
+    //         return result.rows.length > 0 ? result.rows[0] : null;
+    //     } catch (error) {
+    //         logger.error('Error marking notification as read:', error);
+    //         throw error;
+    //     }
+    // }    
 
     // Get notification statistics
     static async getNotificationStats(userId) {
