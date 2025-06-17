@@ -42,7 +42,7 @@ class NotificationController {
                 });
             }
 
-            console.log('Getting notifications for user:', userId, 'limit:', limitNum, 'offset:', offsetNum, 'unreadOnly:', unreadOnlyBool, 'category:', category);
+            //console.log('Getting notifications for user:', userId, 'limit:', limitNum, 'offset:', offsetNum, 'unreadOnly:', unreadOnlyBool, 'category:', category);
 
             const result = await NotificationService.getUserNotifications(userId, {
                 limit: limitNum,
@@ -93,25 +93,17 @@ class NotificationController {
         try {
             const { notificationId } = req.params;
             const { userId } = req.user;
-
-            console.log('-----------Controller markAsRead called');
-            console.log('-----------notificationId from params:', notificationId);
-            console.log('-----------userId from user:', userId);
-
             const notification = await NotificationService.markAsRead(
                 notificationId,
                 userId
             );
 
             if (!notification) {
-                console.log('-----------No notification returned from service');
                 return res.status(404).json({
                     success: false,
                     error: 'Notification not found or access denied'
                 });
             }
-
-            console.log('-----------Successfully processed mark as read:', notification.id);
 
             // Always return success if we got a notification back
             res.json({
@@ -166,17 +158,20 @@ class NotificationController {
     static async markAllAsRead(req, res, next) {
         try {
             const { userId } = req.user;
-            const { category } = req.query;
-
+            const { category } = req.query; // Get category from query params, not body
+    
+            console.log("Mark all as read request:", { userId, category });
+    
             const updatedCount = await NotificationService.markAllAsRead(userId, category);
-
+    
             res.json({
                 success: true,
                 message: `${updatedCount} notifications marked as read`,
                 data: { updatedCount }
             });
-
+    
         } catch (error) {
+            console.error('Error in markAllAsRead:', error);
             next(error);
         }
     }
@@ -186,6 +181,8 @@ class NotificationController {
         try {
             const { userId } = req.user;
             const { notificationIds } = req.body;
+
+            console.log(notificationIds);
 
             // Validate input
             if (!Array.isArray(notificationIds)) {

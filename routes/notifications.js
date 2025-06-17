@@ -12,16 +12,6 @@ router.use(authenticateToken);
 // Get user's notifications (remove duplicate route)
 router.get('/', 
     generalLimiter, 
-    (req, res, next) => {
-        console.log('Notification request received:', {
-            method: req.method,
-            path: req.path,
-            body: req.body,
-            query: req.query,
-            timestamp: new Date().toISOString()
-        });
-        next();
-    }, 
     NotificationController.getNotifications
 );
 

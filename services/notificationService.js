@@ -483,9 +483,10 @@ class NotificationService {
 
 // Get user notifications with filtering
 // Ultra simple version - replace the getUserNotifications method temporarily
-static async getUserNotifications(userId, limit = 50) {
+static async getUserNotifications(userId, limit) {
+
     try {
-        console.log('getUserNotifications called with userId:', userId, 'limit:', limit);
+        //console.log('getUserNotifications called with userId:', userId, 'limit:', limit);
 
         // Use string interpolation to avoid parameter binding issues (for debugging only)
         const query = `
@@ -494,10 +495,8 @@ static async getUserNotifications(userId, limit = 50) {
             FROM notifications 
             WHERE user_id = ${parseInt(userId)} AND is_dismissed = false
             ORDER BY created_at DESC
-            LIMIT ${parseInt(limit)}
+            LIMIT ${parseInt(limit.limit)}
         `;
-
-        console.log('Executing ultra simple query:', query);
 
         const result = await pool.query(query);
 
@@ -576,24 +575,36 @@ static async getUserNotifications(userId, limit = 50) {
     }
 
     // // Mark notification as all read
-    // static async markAllAsRead(notificationId, userId) {
-    //     try {
+    static async markAllAsRead(userId, category) {
+        try {
+            
+            let result;
 
+            if (category == "unread" && category == "all" ) {
+                result = await pool.query(
+                    `UPDATE notifications 
+                     SET is_read = true, read_at = NOW()
+                     WHERE user_id = $1 AND is_read = false
+                     RETURNING *`,
+                    [userId]
+                );
+            }
 
-    //         const result = await pool.query(
-    //             `UPDATE notifications 
-    //              SET is_read = true, read_at = NOW()
-    //              WHERE id = $1 AND user_id = $2 AND is_read = false
-    //              RETURNING *`,
-    //             [notificationId, userId]
-    //         );
-
-    //         return result.rows.length > 0 ? result.rows[0] : null;
-    //     } catch (error) {
-    //         logger.error('Error marking notification as read:', error);
-    //         throw error;
-    //     }
-    // }    
+            else {
+                result = await pool.query(
+                    `UPDATE notifications 
+                     SET is_read = true, read_at = NOW()
+                     WHERE category = $2 AND user_id = $1 AND is_read = false
+                     RETURNING *`,
+                    [userId, category]
+                );
+            }
+            return result.rows.length > 0 ? result.rows[0] : null;
+        } catch (error) {
+            logger.error('Error marking notification as read:', error);
+            throw error;
+        }
+    }    
 
     // Get notification statistics
     static async getNotificationStats(userId) {
