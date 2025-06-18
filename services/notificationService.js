@@ -7,8 +7,8 @@ class NotificationService {
     // Check and create notifications based on animal stats
     static async checkAnimalStatusAndNotify(animalId, newStats, previousStats = null) {
         try {
- //           console.log("🔍 Checking animal ID:", animalId);
-///            console.log("📊 New stats:", newStats);
+            console.log("🔍 Checking animal ID:", animalId);
+            console.log("📊 New stats:", newStats);
 
             const animal = await NotificationService.getAnimalById(animalId);
             
@@ -17,15 +17,15 @@ class NotificationService {
                 return 0;
             }
 
- //           console.log("🐴 Animal found:", animal.name || 'Unnamed Animal');
-//            console.log("🏠 Animal status:", animal.status);
+            console.log("🐴 Animal found:", animal.name || 'Unnamed Animal');
+            console.log("🏠 Animal status:", animal.status);
 
             // Get previous stats if not provided
             if (!previousStats) {
                 previousStats = await NotificationService.getPreviousAnimalStats(animalId);
             }
 
- //           console.log("📈 Previous stats:", previousStats);
+            console.log("📈 Previous stats:", previousStats);
 
             // 🚨 IMPORTANT: Don't send notifications for pet animals
             if (animal.status === 'pet') {
@@ -205,15 +205,6 @@ class NotificationService {
             // Store current stats for future comparison (include animal status)
             await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
 
-            // logger.info('Notification check completed:', {
-            //     animalId,
-            //     animalName: animal.name,
-            //     animalStatus: animal.status,
-            //     isOperable: newStats.isOperable,
-            //     notificationsCreated: createdCount,
-            //     notificationsSkipped: notificationsToCreate.length - createdCount
-            // });
-
             return createdCount;
 
         } catch (error) {
@@ -242,7 +233,7 @@ class NotificationService {
         }
     }
 
-    // Create a notification with improved templates
+    // Create a notification with improved templates and ENHANCED REAL-TIME EMISSION
     static async createNotification(userId, animalId, notificationData) {
         try {
             const { type, severity, data } = notificationData;
@@ -324,12 +315,15 @@ class NotificationService {
                     title: title.substring(0, 50) + '...'
                 });
 
-                // Send real-time notification if possible
+                // 🚨 ENHANCED REAL-TIME NOTIFICATION EMISSION
                 try {
+                    console.log("🔔 Attempting to send real-time notification...");
                     await NotificationService.sendRealTimeNotification(userId, notification);
+                    console.log("✅ Real-time notification sent successfully");
                 } catch (realtimeError) {
                     // Real-time is optional, don't fail if it doesn't work
                     logger.warn('Failed to send real-time notification:', realtimeError.message);
+                    console.error("❌ Real-time notification failed:", realtimeError);
                 }
 
                 return notification;
@@ -353,58 +347,64 @@ class NotificationService {
         }
     }
 
-    // Send real-time notification
+    // ENHANCED Send real-time notification
     static async sendRealTimeNotification(userId, notification) {
         try {
             // Get the global Socket.IO instance
             const io = global.io;
             
-            if (io) {
-                // Send to specific user's room
-                io.to(`user_${userId}`).emit('new_notification', {
-                    id: notification.id,
-                    title: notification.title,
-                    message: notification.message,
-                    severity: notification.severity,
-                    animalId: notification.animal_id,
-                    createdAt: notification.created_at,
-                    metadata: notification.metadata
-                });
-                
-                // Also send updated stats
+            if (!io) {
+                console.log('⚠️  Socket.IO not available for real-time notification');
+                return;
+            }
+
+            // Format notification for frontend
+            const formattedNotification = {
+                id: notification.id,
+                title: notification.title,
+                message: notification.message,
+                severity: notification.severity,
+                category: notification.category,
+                animalId: notification.animal_id,
+                isRead: false,
+                is_read: false,
+                isDismissed: false,
+                is_dismissed: false,
+                createdAt: notification.created_at,
+                metadata: notification.metadata
+            };
+
+            console.log(`🔔 Sending real-time notification to user_${userId}:`, {
+                title: formattedNotification.title,
+                severity: formattedNotification.severity,
+                socketRoom: `user_${userId}`
+            });
+
+            // Send to specific user's room
+            io.to(`user_${userId}`).emit('new_notification', formattedNotification);
+            
+            // Also send updated stats
+            try {
                 const stats = await NotificationService.getNotificationStats(userId);
                 io.to(`user_${userId}`).emit('notification_stats', stats);
-                
-                console.log(`🔔 Real-time notification sent to user ${userId}:`, notification.title);
-                logger.info('Real-time notification sent', {
-                    userId,
-                    notificationId: notification.id,
-                    title: notification.title,
-                    severity: notification.severity
-                });
-            } else {
-                console.log('⚠️  Socket.IO not available for real-time notification');
+                console.log(`📊 Sent updated stats to user ${userId}:`, stats);
+            } catch (statsError) {
+                console.error("Error getting/sending stats:", statsError);
             }
+            
+            console.log(`✅ Real-time notification sent successfully to user ${userId}`);
+            logger.info('Real-time notification sent', {
+                userId,
+                notificationId: notification.id,
+                title: notification.title,
+                severity: notification.severity,
+                socketRoom: `user_${userId}`
+            });
+
         } catch (error) {
             logger.error('Error sending real-time notification:', error);
-        }
-    }
-
-    // Get previous animal stats for comparison
-    static async getPreviousAnimalStats(animalId) {
-        try {
-            const result = await pool.query(
-                `SELECT * FROM animal_stat_history 
-                 WHERE animal_id = $1 
-                 ORDER BY recorded_at DESC 
-                 LIMIT 1`,
-                [animalId]
-            );
-
-            return result.rows.length > 0 ? result.rows[0] : null;
-        } catch (error) {
-            logger.warn('Could not get previous stats:', error.message);
-            return null;
+            console.error("❌ Real-time notification error:", error);
+            throw error; // Re-throw to handle in calling function
         }
     }
 
@@ -481,63 +481,100 @@ class NotificationService {
         return result;
     }
 
-// Get user notifications with filtering
-// Ultra simple version - replace the getUserNotifications method temporarily
-static async getUserNotifications(userId, limit) {
+    // Get user notifications with improved pagination
+    static async getUserNotifications(userId, options = {}) {
+        try {
+            const { 
+                limit = 10, 
+                offset = 0, 
+                unreadOnly = false, 
+                category = null 
+            } = options;
 
-    try {
-        //console.log('getUserNotifications called with userId:', userId, 'limit:', limit);
+            console.log('getUserNotifications called with:', { userId, limit, offset, unreadOnly, category });
 
-        // Use string interpolation to avoid parameter binding issues (for debugging only)
-        const query = `
-            SELECT id, user_id, animal_id, title, message, severity, category, 
-                   is_read, is_dismissed, created_at, read_at, metadata
-            FROM notifications 
-            WHERE user_id = ${parseInt(userId)} AND is_dismissed = false
-            ORDER BY created_at DESC
-            LIMIT ${parseInt(limit.limit)}
-        `;
+            let whereClause = 'WHERE user_id = $1 AND is_dismissed = false';
+            let params = [userId];
+            let paramCount = 1;
 
-        const result = await pool.query(query);
+            if (unreadOnly) {
+                whereClause += ` AND is_read = false`;
+            }
 
-        const notifications = result.rows.map(row => ({
-            id: row.id,
-            title: row.title,
-            message: row.message,
-            severity: row.severity,
-            category: row.category,
-            animalId: row.animal_id,
-            animalName: null,
-            isRead: row.is_read,
-            isDismissed: row.is_dismissed,
-            createdAt: row.created_at,
-            readAt: row.read_at,
-            metadata: row.metadata
-        }));
+            if (category) {
+                paramCount++;
+                whereClause += ` AND category = $${paramCount}`;
+                params.push(category);
+            }
 
-        console.log(`Found ${notifications.length} notifications for user ${userId}`);
+            // Get total count
+            const countQuery = `SELECT COUNT(*) FROM notifications ${whereClause}`;
+            const countResult = await pool.query(countQuery, params);
+            const totalCount = parseInt(countResult.rows[0].count);
 
-        return {
-            notifications,
-            totalCount: notifications.length,
-            unreadCount: notifications.filter(n => !n.is_read).length
-        };
+            // Get notifications
+            paramCount++;
+            const limitParam = paramCount;
+            paramCount++;
+            const offsetParam = paramCount;
+            
+            const query = `
+                SELECT id, user_id, animal_id, title, message, severity, category, 
+                       is_read, is_dismissed, created_at, read_at, metadata
+                FROM notifications 
+                ${whereClause}
+                ORDER BY created_at DESC
+                LIMIT $${limitParam} OFFSET $${offsetParam}
+            `;
+            
+            params.push(limit, offset);
+            const result = await pool.query(query, params);
 
-    } catch (error) {
-        console.error('Database error in getUserNotifications:', error);
-        return { 
-            notifications: [], 
-            totalCount: 0, 
-            unreadCount: 0 
-        };
+            const notifications = result.rows.map(row => ({
+                id: row.id,
+                title: row.title,
+                message: row.message,
+                severity: row.severity,
+                category: row.category,
+                animalId: row.animal_id,
+                animalName: null,
+                isRead: row.is_read,
+                is_read: row.is_read,
+                isDismissed: row.is_dismissed,
+                is_dismissed: row.is_dismissed,
+                createdAt: row.created_at,
+                readAt: row.read_at,
+                metadata: row.metadata
+            }));
+
+            // Get unread count
+            const unreadQuery = `SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_dismissed = false AND is_read = false`;
+            const unreadResult = await pool.query(unreadQuery, [userId]);
+            const unreadCount = parseInt(unreadResult.rows[0].count);
+
+            console.log(`Found ${notifications.length} notifications for user ${userId}, total: ${totalCount}, unread: ${unreadCount}`);
+
+            return {
+                notifications,
+                totalCount,
+                unreadCount,
+                hasMore: (offset + limit) < totalCount
+            };
+
+        } catch (error) {
+            console.error('Database error in getUserNotifications:', error);
+            return { 
+                notifications: [], 
+                totalCount: 0, 
+                unreadCount: 0,
+                hasMore: false
+            };
+        }
     }
-}
 
     // Mark notification as read
     static async markAsRead(notificationId, userId) {
         try {
-
-
             const result = await pool.query(
                 `UPDATE notifications 
                  SET is_read = true, read_at = NOW()
@@ -553,12 +590,9 @@ static async getUserNotifications(userId, limit) {
         }
     }
 
-
-       // Mark notification as dismiss
-       static async markAsDismissed(notificationId, userId) {
+    // Mark notification as dismissed
+    static async markAsDismissed(notificationId, userId) {
         try {
-
-
             const result = await pool.query(
                 `UPDATE notifications 
                  SET is_dismissed = true, dismissed_at = NOW()
@@ -569,39 +603,37 @@ static async getUserNotifications(userId, limit) {
 
             return result.rows.length > 0 ? result.rows[0] : null;
         } catch (error) {
-            logger.error('Error marking notification as read:', error);
+            logger.error('Error marking notification as dismissed:', error);
             throw error;
         }
     }
 
-    // // Mark notification as all read
+    // Mark all notifications as read
     static async markAllAsRead(userId, category) {
         try {
-            
             let result;
 
-            if (category == "unread" && category == "all" ) {
+            if (!category || category === "unread" || category === "all") {
                 result = await pool.query(
                     `UPDATE notifications 
                      SET is_read = true, read_at = NOW()
-                     WHERE user_id = $1 AND is_read = false
+                     WHERE user_id = $1 AND is_read = false AND is_dismissed = false
                      RETURNING *`,
                     [userId]
                 );
-            }
-
-            else {
+            } else {
                 result = await pool.query(
                     `UPDATE notifications 
                      SET is_read = true, read_at = NOW()
-                     WHERE category = $2 AND user_id = $1 AND is_read = false
+                     WHERE user_id = $1 AND category = $2 AND is_read = false AND is_dismissed = false
                      RETURNING *`,
                     [userId, category]
                 );
             }
-            return result.rows.length > 0 ? result.rows[0] : null;
+            
+            return result.rows.length;
         } catch (error) {
-            logger.error('Error marking notification as read:', error);
+            logger.error('Error marking all notifications as read:', error);
             throw error;
         }
     }    
@@ -638,101 +670,99 @@ static async getUserNotifications(userId, limit) {
         }
     }
 
-        // Bulk mark as read
-        static async bulkMarkAsRead(userId, notificationIds) {
-            try {
-                if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
-                    return 0;
-                }
-    
-                // Convert to integers and filter out invalid IDs
-                const validIds = notificationIds
-                    .map(id => parseInt(id))
-                    .filter(id => !isNaN(id) && id > 0);
-    
-                if (validIds.length === 0) {
-                    return 0;
-                }
-    
-                const placeholders = validIds.map((_, index) => `$${index + 2}`).join(', ');
-                const query = `
-                    UPDATE notifications 
-                    SET is_read = true, read_at = NOW()
-                    WHERE user_id = $1 AND id IN (${placeholders}) AND is_read = false AND is_dismissed = false
-                    RETURNING id
-                `;
-    
-                const result = await pool.query(query, [userId, ...validIds]);
-                const updatedCount = result.rows.length;
-    
-                // Send real-time update for stats
-                if (updatedCount > 0) {
-                    try {
-                        const stats = await NotificationService.getNotificationStats(userId);
-                        const io = global.io;
-                        if (io) {
-                            io.to(`user_${userId}`).emit('notification_stats', stats);
-                        }
-                    } catch (realtimeError) {
-                        console.log('Could not send real-time stats update:', realtimeError.message);
-                    }
-                }
-    
-                return updatedCount;
-            } catch (error) {
-                logger.error('Error bulk marking notifications as read:', error);
-                throw error;
+    // Bulk mark as read
+    static async bulkMarkAsRead(userId, notificationIds) {
+        try {
+            if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
+                return 0;
             }
-        }
-    
-        // Bulk dismiss
-        static async bulkDismiss(userId, notificationIds) {
-            try {
-                if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
-                    return 0;
-                }
-    
-                // Convert to integers and filter out invalid IDs
-                const validIds = notificationIds
-                    .map(id => parseInt(id))
-                    .filter(id => !isNaN(id) && id > 0);
-    
-                if (validIds.length === 0) {
-                    return 0;
-                }
-    
-                const placeholders = validIds.map((_, index) => `$${index + 2}`).join(', ');
-                const query = `
-                    UPDATE notifications 
-                    SET is_dismissed = true, dismissed_at = NOW()
-                    WHERE user_id = $1 AND id IN (${placeholders}) AND is_dismissed = false
-                    RETURNING id
-                `;
-    
-                const result = await pool.query(query, [userId, ...validIds]);
-                const updatedCount = result.rows.length;
-    
-                // Send real-time update for stats
-                if (updatedCount > 0) {
-                    try {
-                        const stats = await NotificationService.getNotificationStats(userId);
-                        const io = global.io;
-                        if (io) {
-                            io.to(`user_${userId}`).emit('notification_stats', stats);
-                        }
-                    } catch (realtimeError) {
-                        console.log('Could not send real-time stats update:', realtimeError.message);
-                    }
-                }
-    
-                return updatedCount;
-            } catch (error) {
-                logger.error('Error bulk marking notifications as read:', error);
-                throw error;
+
+            // Convert to integers and filter out invalid IDs
+            const validIds = notificationIds
+                .map(id => parseInt(id))
+                .filter(id => !isNaN(id) && id > 0);
+
+            if (validIds.length === 0) {
+                return 0;
             }
+
+            const placeholders = validIds.map((_, index) => `$${index + 2}`).join(', ');
+            const query = `
+                UPDATE notifications 
+                SET is_read = true, read_at = NOW()
+                WHERE user_id = $1 AND id IN (${placeholders}) AND is_read = false AND is_dismissed = false
+                RETURNING id
+            `;
+
+            const result = await pool.query(query, [userId, ...validIds]);
+            const updatedCount = result.rows.length;
+
+            // Send real-time update for stats
+            if (updatedCount > 0) {
+                try {
+                    const stats = await NotificationService.getNotificationStats(userId);
+                    const io = global.io;
+                    if (io) {
+                        io.to(`user_${userId}`).emit('notification_stats', stats);
+                    }
+                } catch (realtimeError) {
+                    console.log('Could not send real-time stats update:', realtimeError.message);
+                }
+            }
+
+            return updatedCount;
+        } catch (error) {
+            logger.error('Error bulk marking notifications as read:', error);
+            throw error;
         }
+    }
+
+    // Bulk dismiss
+    static async bulkDismiss(userId, notificationIds) {
+        try {
+            if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
+                return 0;
+            }
+
+            // Convert to integers and filter out invalid IDs
+            const validIds = notificationIds
+                .map(id => parseInt(id))
+                .filter(id => !isNaN(id) && id > 0);
+
+            if (validIds.length === 0) {
+                return 0;
+            }
+
+            const placeholders = validIds.map((_, index) => `$${index + 2}`).join(', ');
+            const query = `
+                UPDATE notifications 
+                SET is_dismissed = true, dismissed_at = NOW()
+                WHERE user_id = $1 AND id IN (${placeholders}) AND is_dismissed = false
+                RETURNING id
+            `;
+
+            const result = await pool.query(query, [userId, ...validIds]);
+            const updatedCount = result.rows.length;
+
+            // Send real-time update for stats
+            if (updatedCount > 0) {
+                try {
+                    const stats = await NotificationService.getNotificationStats(userId);
+                    const io = global.io;
+                    if (io) {
+                        io.to(`user_${userId}`).emit('notification_stats', stats);
+                    }
+                } catch (realtimeError) {
+                    console.log('Could not send real-time stats update:', realtimeError.message);
+                }
+            }
+
+            return updatedCount;
+        } catch (error) {
+            logger.error('Error bulk dismissing notifications:', error);
+            throw error;
+        }
+    }
 }
-
-
 
 module.exports = NotificationService;
