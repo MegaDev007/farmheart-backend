@@ -4,7 +4,7 @@ const router = express.Router();
 
 const AnimalController = require('../controllers/animalController');
 const { authenticateToken, optionalAuth } = require('../middleware/auth');
-const { generalLimiter, authLimiter } = require('../middleware/rateLimiting');
+// const { generalLimiter, authLimiter } = require('../middleware/rateLimiting');
 const { 
     validateAnimalRegistration,
     validateAnimalStats,
@@ -14,7 +14,7 @@ const {
 
 // SL-facing endpoints (public, but with rate limiting)
 router.post('/register/:slObjectKey', 
-    generalLimiter, 
+    // generalLimiter, 
     validateAnimalRegistration, 
     AnimalController.registerAnimal
 );
@@ -26,18 +26,18 @@ router.put('/stats/:slObjectKey',
 );
 
 router.get('/sl/:slObjectKey', 
-    generalLimiter, 
+    // generalLimiter, 
     AnimalController.getAnimalBySlKey
 );
 
 router.post('/breeding', 
-    generalLimiter, 
+    // generalLimiter, 
     validateBreeding, 
     AnimalController.processBreeding
 );
 
 router.post('/consumption/:slObjectKey', 
-    generalLimiter, 
+    // generalLimiter, 
     validateConsumption, 
     AnimalController.logConsumption
 );

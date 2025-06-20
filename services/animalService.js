@@ -335,6 +335,7 @@ class AnimalService {
 
     // Get detailed animal information
     static async getAnimalDetails(animalId, requestingUserId) {
+        
         try {
             const result = await pool.query(
                 `SELECT a.*, ab.name as breed_name, u.sl_username as owner_username

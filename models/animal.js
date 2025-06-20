@@ -244,7 +244,7 @@ class Animal {
 
         if (result.rows.length > 0) {
             Object.assign(this, new Animal(result.rows[0]));
-            logger.info('Animal stats updated', { animalId: this.id, slObjectKey: this.slObjectKey });
+           // logger.info('Animal stats updated', { animalId: this.id, slObjectKey: this.slObjectKey });
         }
 
         return this;
@@ -376,6 +376,7 @@ class Animal {
                 rarityLevel: trait.rarity_level,
                 inheritedFrom: trait.inherited_from || 'unknown'
             }));
+            //console.log("!-------------------------",this.traits);
 
         } catch (error) {
             console.error('Error loading traits for animal:', this.id, error);

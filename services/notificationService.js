@@ -7,8 +7,8 @@ class NotificationService {
     // Check and create notifications based on animal stats
     static async checkAnimalStatusAndNotify(animalId, newStats, previousStats = null) {
         try {
-            console.log("🔍 Checking animal ID:", animalId);
-            console.log("📊 New stats:", newStats);
+            //console.log("🔍 Checking animal ID:", animalId);
+            //console.log("📊 New stats:", newStats);
 
             const animal = await NotificationService.getAnimalById(animalId);
             
@@ -17,15 +17,15 @@ class NotificationService {
                 return 0;
             }
 
-            console.log("🐴 Animal found:", animal.name || 'Unnamed Animal');
-            console.log("🏠 Animal status:", animal.status);
+            //console.log("🐴 Animal found:", animal.name || 'Unnamed Animal');
+            //console.log("🏠 Animal status:", animal.status);
 
             // Get previous stats if not provided
             if (!previousStats) {
                 previousStats = await NotificationService.getPreviousAnimalStats(animalId);
             }
 
-            console.log("📈 Previous stats:", previousStats);
+            //console.log("📈 Previous stats:", previousStats);
 
             // 🚨 IMPORTANT: Don't send notifications for pet animals
             if (animal.status === 'pet') {
@@ -171,7 +171,7 @@ class NotificationService {
                 console.log(`⚠️  Skipping breeding notifications - ${animal.name} is inoperable`);
             }
 
-            console.log("📋 Notifications to create:", notificationsToCreate.length);
+            //console.log("📋 Notifications to create:", notificationsToCreate.length);
 
             // Create all notifications with spam prevention
             let createdCount = 0;
@@ -249,37 +249,37 @@ class NotificationService {
             // Enhanced template system with categories
             const templates = {
                 'animal_hunger': {
-                    title: '🍽️ {animalName} is getting hungry',
+                    title: '{animalName} is getting hungry',
                     body: '{animalName} hunger level has reached {hungerPercent}% (up from {previousHunger}%). Please provide food soon to prevent health issues.',
                     category: 'animal_care'
                 },
                 'animal_critical_hunger': {
-                    title: '🚨 {animalName} is critically hungry!',
+                    title: '{animalName} is critically hungry!',
                     body: 'URGENT: {animalName} hunger level is at {hungerPercent}% - immediate feeding required! Your animal will become inoperable if not fed soon.',
                     category: 'animal_care'
                 },
                 'animal_happiness_low': {
-                    title: '😔 {animalName} is feeling sad',
+                    title: '{animalName} is feeling sad',
                     body: '{animalName} happiness has dropped to {happinessPercent}% (down from {previousHappiness}%). Consider brushing or providing minerals to improve mood.',
                     category: 'animal_care'
                 },
                 'animal_happiness_critical': {
-                    title: '💔 {animalName} is very unhappy!',
+                    title: '{animalName} is very unhappy!',
                     body: 'URGENT: {animalName} happiness is critically low at {happinessPercent}%. Immediate care needed - brush your animal or provide minerals!',
                     category: 'animal_care'
                 },
                 'breeding_ready': {
-                    title: '💕 {animalName} is ready to breed',
+                    title: '{animalName} is ready to breed',
                     body: 'Great news! {animalName} has reached optimal breeding conditions with {heatPercent}% heat, {happinessPercent}% happiness, and {hungerPercent}% satiation.',
                     category: 'breeding'
                 },
                 'animal_inoperable': {
-                    title: '💀 {animalName} has become inoperable',
+                    title: '{animalName} has become inoperable',
                     body: 'CRITICAL: {animalName} is no longer functional due to neglect (Hunger: {hungerPercent}%, Happiness: {happinessPercent}%). Feed and care for your animal immediately to restore functionality!',
                     category: 'animal_care'
                 },
                 'animal_became_pet': {
-                    title: '🎉 {animalName} became a pet!',
+                    title: '{animalName} became a pet!',
                     body: 'Congratulations! {animalName} has completed its breeding cycle at {age} days old and is now a beloved pet. No more feeding or care required - just enjoy riding and companionship!',
                     category: 'achievement'
                 }
@@ -454,6 +454,7 @@ class NotificationService {
 
     // Get animal by ID with proper error handling
     static async getAnimalById(animalId) {
+
         try {
             const result = await pool.query(
                 `SELECT a.*, u.id as owner_id, ab.name as breed_name
