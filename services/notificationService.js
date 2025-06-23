@@ -1,15 +1,14 @@
 // services/notificationService.js
+
 const { pool } = require('../config/database');
 const logger = require('../utils/logger');
+const EmailService = require('./emailService'); // We'll create this
 
 class NotificationService {
 
-    // Check and create notifications based on animal stats
+    // Enhanced method to check animal status and notify via both channels
     static async checkAnimalStatusAndNotify(animalId, newStats, previousStats = null) {
         try {
-            //console.log("🔍 Checking animal ID:", animalId);
-            //console.log("📊 New stats:", newStats);
-
             const animal = await NotificationService.getAnimalById(animalId);
             
             if (!animal) {
@@ -17,59 +16,61 @@ class NotificationService {
                 return 0;
             }
 
-            //console.log("🐴 Animal found:", animal.name || 'Unnamed Animal');
-            //console.log("🏠 Animal status:", animal.status);
+            // Get user notification preferences
+            const preferences = await NotificationService.getUserNotificationPreferences(animal.owner_id);
+
+            // Skip notifications if both are disabled
+            if (!preferences.inAppEnabled && !preferences.emailEnabled) {
+                await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
+                return 0;
+            }
 
             // Get previous stats if not provided
             if (!previousStats) {
                 previousStats = await NotificationService.getPreviousAnimalStats(animalId);
             }
 
-            //console.log("📈 Previous stats:", previousStats);
-
-            // 🚨 IMPORTANT: Don't send notifications for pet animals
+            // Don't send notifications for pet animals (except one-time pet notification)
             if (animal.status === 'pet') {
-                // Send a one-time notification when animal becomes a pet
                 const wasPreviouslyPet = previousStats?.animal_status === 'pet';
                 
                 if (!wasPreviouslyPet) {
-                    const petNotification = await NotificationService.createNotification(
+                    const petNotification = {
+                        type: 'animal_became_pet',
+                        severity: 'medium',
+                        data: {
+                            animalName: animal.name || 'Unnamed Animal',
+                            age: animal.age_days || 0,
+                            location: animal.region_name || 'Unknown Region'
+                        }
+                    };
+
+                    await NotificationService.sendNotification(
                         animal.owner_id, 
                         animalId, 
-                        {
-                            type: 'animal_became_pet',
-                            severity: 'medium',
-                            data: {
-                                animalName: animal.name || 'Unnamed Animal',
-                                age: animal.age_days || 0
-                            }
-                        }
+                        petNotification, 
+                        preferences,
+                        animal
                     );
 
-                    if (petNotification) {
-                        console.log(`🎉 PET NOTIFICATION: ${animal.name} became a pet!`);
-                        await NotificationService.recordAnimalStats(animalId, newStats);
-                        return 1;
-                    }
+                    await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
+                    return 1;
                 }
                 
-                console.log("🐾 Skipping notifications - animal is a pet");
-                await NotificationService.recordAnimalStats(animalId, newStats);
+                await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
                 return 0;
             }
 
-            // 🚨 IMPORTANT: Don't send notifications for eden animals
+            // Don't send notifications for eden animals
             if (animal.status === 'eden') {
-                console.log("💫 Skipping notifications - animal is in eden");
-                await NotificationService.recordAnimalStats(animalId, newStats);
+                await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
                 return 0;
             }
 
             const notificationsToCreate = [];
 
-            // 1. INOPERABLE NOTIFICATIONS (Check this FIRST!)
-            // Trigger: animal becomes inoperable (state change)
-            const previousOperable = previousStats?.is_operable !== false; // Default to true if no previous data
+            // 1. INOPERABLE NOTIFICATIONS
+            const previousOperable = previousStats?.is_operable !== false;
             
             if (!newStats.isOperable && previousOperable) {
                 notificationsToCreate.push({
@@ -79,21 +80,38 @@ class NotificationService {
                         animalName: animal.name || 'Unnamed Animal',
                         hungerPercent: newStats.hungerPercent,
                         happinessPercent: newStats.happinessPercent,
-                        heatPercent: newStats.heatPercent
+                        heatPercent: newStats.heatPercent,
+                        location: animal.region_name || 'Unknown Region'
                     }
                 });
-                console.log(`💀 INOPERABLE ALERT: ${animal.name} has become inoperable!`);
             }
 
-            // 2. HUNGER NOTIFICATIONS (Only if animal is OPERABLE!)
-            // Trigger: hunger >= 75% (critical at 95%) AND increasing AND animal is operable
+            // 2. BREEDING READY NOTIFICATIONS
             if (newStats.isOperable) {
+                const previousBreedable = previousStats?.is_breedable || false;
+                
+                if (newStats.isBreedable && !previousBreedable) {
+                    notificationsToCreate.push({
+                        type: 'breeding_ready',
+                        severity: 'medium',
+                        data: {
+                            animalName: animal.name || 'Unnamed Animal',
+                            heatPercent: newStats.heatPercent,
+                            happinessPercent: newStats.happinessPercent,
+                            hungerPercent: newStats.hungerPercent,
+                            location: animal.region_name || 'Unknown Region'
+                        }
+                    });
+                }
+            }
+
+            // 3. HUNGER NOTIFICATIONS (only for in-app, not email)
+            if (newStats.isOperable && preferences.inAppEnabled) {
                 const hungerThreshold = 75;
                 const hungerCriticalThreshold = 95;
                 const previousHunger = previousStats?.hunger_percent || 0;
                 
                 if (newStats.hungerPercent >= hungerThreshold) {
-                    // Only notify if hunger is increasing OR if no previous data
                     const isHungerIncreasing = !previousStats || newStats.hungerPercent > previousHunger;
                     
                     if (isHungerIncreasing) {
@@ -107,25 +125,21 @@ class NotificationService {
                                 animalName: animal.name || 'Unnamed Animal',
                                 hungerPercent: newStats.hungerPercent,
                                 previousHunger: previousHunger,
-                                threshold: newStats.hungerPercent >= hungerCriticalThreshold ? hungerCriticalThreshold : hungerThreshold
+                                threshold: newStats.hungerPercent >= hungerCriticalThreshold ? hungerCriticalThreshold : hungerThreshold,
+                                emailOnly: false // This is in-app only
                             }
                         });
-                        console.log(`🚨 HUNGER ALERT: ${animal.name} hunger ${newStats.hungerPercent}% (was ${previousHunger}%)`);
                     }
                 }
-            } else {
-                console.log(`⚠️  Skipping hunger notifications - ${animal.name} is inoperable`);
             }
 
-            // 3. HAPPINESS NOTIFICATIONS (Only if animal is OPERABLE!)
-            // Trigger: happiness <= 25% (critical at 5%) AND decreasing AND animal is operable
-            if (newStats.isOperable) {
+            // 4. HAPPINESS NOTIFICATIONS (only for in-app, not email)
+            if (newStats.isOperable && preferences.inAppEnabled) {
                 const happinessThreshold = 25;
                 const happinessCriticalThreshold = 5;
                 const previousHappiness = previousStats?.happiness_percent || 100;
                 
                 if (newStats.happinessPercent <= happinessThreshold) {
-                    // Only notify if happiness is decreasing OR if no previous data
                     const isHappinessDecreasing = !previousStats || newStats.happinessPercent < previousHappiness;
                     
                     if (isHappinessDecreasing) {
@@ -139,45 +153,19 @@ class NotificationService {
                                 animalName: animal.name || 'Unnamed Animal',
                                 happinessPercent: newStats.happinessPercent,
                                 previousHappiness: previousHappiness,
-                                threshold: newStats.happinessPercent <= happinessCriticalThreshold ? happinessCriticalThreshold : happinessThreshold
+                                threshold: newStats.happinessPercent <= happinessCriticalThreshold ? happinessCriticalThreshold : happinessThreshold,
+                                emailOnly: false // This is in-app only
                             }
                         });
-                        console.log(`😢 HAPPINESS ALERT: ${animal.name} happiness ${newStats.happinessPercent}% (was ${previousHappiness}%)`);
                     }
                 }
-            } else {
-                console.log(`⚠️  Skipping happiness notifications - ${animal.name} is inoperable`);
             }
 
-            // 4. BREEDING READY NOTIFICATIONS (Only if animal is OPERABLE!)
-            // Trigger: animal becomes breedable (state change) AND animal is operable
-            if (newStats.isOperable) {
-                const previousBreedable = previousStats?.is_breedable || false;
-                
-                if (newStats.isBreedable && !previousBreedable) {
-                    notificationsToCreate.push({
-                        type: 'breeding_ready',
-                        severity: 'medium',
-                        data: {
-                            animalName: animal.name || 'Unnamed Animal',
-                            heatPercent: newStats.heatPercent,
-                            happinessPercent: newStats.happinessPercent,
-                            hungerPercent: newStats.hungerPercent
-                        }
-                    });
-                    console.log(`💕 BREEDING READY: ${animal.name} is now ready to breed!`);
-                }
-            } else {
-                console.log(`⚠️  Skipping breeding notifications - ${animal.name} is inoperable`);
-            }
-
-            //console.log("📋 Notifications to create:", notificationsToCreate.length);
-
-            // Create all notifications with spam prevention
+            // Send all notifications
             let createdCount = 0;
             for (const notification of notificationsToCreate) {
                 try {
-                    // Check for spam (same notification type within last hour)
+                    // Check for spam
                     const isDuplicate = await NotificationService.checkForDuplicateNotification(
                         animal.owner_id, 
                         animalId, 
@@ -185,68 +173,59 @@ class NotificationService {
                     );
 
                     if (!isDuplicate) {
-                        const created = await NotificationService.createNotification(
+                        await NotificationService.sendNotification(
                             animal.owner_id, 
                             animalId, 
-                            notification
+                            notification, 
+                            preferences,
+                            animal
                         );
-                        if (created) {
-                            createdCount++;
-                            console.log(`✅ Created notification: ${notification.type}`);
-                        }
-                    } else {
-                        console.log(`⏭️  Skipped duplicate notification: ${notification.type}`);
+                        createdCount++;
                     }
                 } catch (error) {
                     logger.error('Error creating individual notification:', error);
                 }
             }
 
-            // Store current stats for future comparison (include animal status)
             await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
-
             return createdCount;
 
         } catch (error) {
             logger.error('Error checking animal status for notifications:', error);
-            return 0; // Don't throw to avoid breaking animal updates
+            return 0;
         }
     }
 
-    // Check for duplicate notifications to prevent spam
-    static async checkForDuplicateNotification(userId, animalId, notificationType) {
-        try {
-            const result = await pool.query(
-                `SELECT id FROM notifications 
-                 WHERE user_id = $1 
-                   AND animal_id = $2 
-                   AND title LIKE '%' || $3 || '%'
-                   AND created_at > NOW() - INTERVAL '1 hour'
-                   AND is_dismissed = false`,
-                [userId, animalId, notificationType.replace('animal_', '').replace('_', ' ')]
-            );
-
-            return result.rows.length > 0;
-        } catch (error) {
-            logger.error('Error checking for duplicate notification:', error);
-            return false; // If we can't check, allow the notification
-        }
-    }
-
-    // Create a notification with improved templates and ENHANCED REAL-TIME EMISSION
-    static async createNotification(userId, animalId, notificationData) {
+    // New method to send notifications via both channels
+    static async sendNotification(userId, animalId, notificationData, preferences, animal) {
         try {
             const { type, severity, data } = notificationData;
 
-            console.log("📝 Creating notification:", { type, severity, userId, animalId });
+            // Determine which notifications should be sent via email
+            const emailEligibleTypes = ['animal_became_pet', 'animal_inoperable', 'breeding_ready'];
+            const shouldSendEmail = preferences.emailEnabled && emailEligibleTypes.includes(type);
+            const shouldSendInApp = preferences.inAppEnabled && !data.emailOnly;
 
-            // Validate required data
-            if (!userId || !type || !data) {
-                logger.error('Invalid notification data:', { userId, type, data });
-                return null;
+            // Send in-app notification
+            if (shouldSendInApp) {
+                await NotificationService.createInAppNotification(userId, animalId, notificationData);
             }
 
-            // Enhanced template system with categories
+            // Send email notification
+            if (shouldSendEmail) {
+                await NotificationService.sendEmailNotification(userId, animalId, notificationData, animal);
+            }
+
+        } catch (error) {
+            logger.error('Error sending notification:', error);
+        }
+    }
+
+    // Create in-app notification (existing logic)
+    static async createInAppNotification(userId, animalId, notificationData) {
+        try {
+            const { type, severity, data } = notificationData;
+
             const templates = {
                 'animal_hunger': {
                     title: '{animalName} is getting hungry',
@@ -295,7 +274,6 @@ class NotificationService {
             const message = NotificationService.replaceTemplateVariables(template.body, data);
             const category = template.category;
 
-            // Try to create the notification in database
             try {
                 const result = await pool.query(
                     `INSERT INTO notifications (user_id, animal_id, title, message, severity, category, metadata, created_at)
@@ -306,51 +284,226 @@ class NotificationService {
 
                 const notification = result.rows[0];
 
-                logger.info('✅ Notification created successfully:', {
-                    notificationId: notification.id,
-                    userId,
-                    animalId,
-                    type,
-                    severity,
-                    title: title.substring(0, 50) + '...'
-                });
-
-                // 🚨 ENHANCED REAL-TIME NOTIFICATION EMISSION
+                // Send real-time notification
                 try {
-                    console.log("🔔 Attempting to send real-time notification...");
                     await NotificationService.sendRealTimeNotification(userId, notification);
-                    console.log("✅ Real-time notification sent successfully");
                 } catch (realtimeError) {
-                    // Real-time is optional, don't fail if it doesn't work
                     logger.warn('Failed to send real-time notification:', realtimeError.message);
-                    console.error("❌ Real-time notification failed:", realtimeError);
                 }
 
                 return notification;
 
             } catch (dbError) {
-                // If database table doesn't exist, just log the notification
-                logger.info('📝 Notification would be created (DB table missing):', {
-                    userId,
-                    animalId,
-                    type,
-                    title: title.substring(0, 50) + '...',
-                    message: message.substring(0, 100) + '...',
-                    severity
+                logger.info('📝 In-app notification would be created (DB table missing):', {
+                    userId, animalId, type, title: title.substring(0, 50) + '...', severity
                 });
-                return { id: Date.now(), title, message, severity }; // Mock notification
+                return { id: Date.now(), title, message, severity };
             }
 
         } catch (error) {
-            logger.error('Error creating notification:', error);
+            logger.error('Error creating in-app notification:', error);
             return null;
         }
     }
 
-    // ENHANCED Send real-time notification
+    // New method to send email notifications
+    static async sendEmailNotification(userId, animalId, notificationData, animal) {
+        try {
+            const { type, severity, data } = notificationData;
+            
+            // Get user email
+            const userResult = await pool.query(
+                'SELECT email, sl_username FROM users WHERE id = $1',
+                [userId]
+            );
+
+            if (userResult.rows.length === 0) {
+                logger.warn('User not found for email notification:', userId);
+                return;
+            }
+
+            const user = userResult.rows[0];
+            if (!user.email) {
+                logger.warn('User has no email address for notification:', userId);
+                return;
+            }
+
+            // Create SL URL for the animal location
+            const slUrl = data.location ? 
+                `http://maps.secondlife.com/secondlife/${encodeURIComponent(data.location)}` : 
+                'Location unavailable';
+
+            // Email templates for specific notification types
+            const emailTemplates = {
+                'animal_became_pet': {
+                    subject: `🎉 ${data.animalName} became a pet!`,
+                    html: `
+                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                            <h2 style="color: #4CAF50;">🎉 Congratulations!</h2>
+                            <p>Dear ${user.sl_username || 'Breeder'},</p>
+                            <p><strong>${data.animalName}</strong> has completed its breeding cycle at <strong>${data.age} days old</strong> and is now a beloved pet!</p>
+                            <p>🎊 <em>No more feeding or care required - just enjoy riding and companionship!</em></p>
+                            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                                <h3>Animal Location:</h3>
+                                <p><a href="${slUrl}" style="color: #2196F3;">Visit ${data.animalName} in Second Life</a></p>
+                            </div>
+                            <p>Happy trails!</p>
+                            <p>The Farmheart Team</p>
+                        </div>
+                    `
+                },
+                'animal_inoperable': {
+                    subject: `🚨 URGENT: ${data.animalName} needs immediate care!`,
+                    html: `
+                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                            <h2 style="color: #f44336;">🚨 CRITICAL ALERT</h2>
+                            <p>Dear ${user.sl_username || 'Breeder'},</p>
+                            <p><strong>${data.animalName}</strong> has become inoperable due to neglect and needs immediate attention!</p>
+                            <div style="background: #ffebee; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f44336;">
+                                <h3>Current Status:</h3>
+                                <ul>
+                                    <li>Hunger: <strong>${data.hungerPercent}%</strong></li>
+                                    <li>Happiness: <strong>${data.happinessPercent}%</strong></li>
+                                    <li>Heat: <strong>${data.heatPercent}%</strong></li>
+                                </ul>
+                            </div>
+                            <p><strong>Action Required:</strong> Feed and care for your animal immediately to restore functionality!</p>
+                            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                                <h3>Animal Location:</h3>
+                                <p><a href="${slUrl}" style="color: #2196F3;">Visit ${data.animalName} in Second Life</a></p>
+                            </div>
+                            <p>Please act quickly to restore your animal's health.</p>
+                            <p>The Farmheart Team</p>
+                        </div>
+                    `
+                },
+                'breeding_ready': {
+                    subject: `💕 ${data.animalName} is ready to breed!`,
+                    html: `
+                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                            <h2 style="color: #9C27B0;">💕 Breeding Ready!</h2>
+                            <p>Dear ${user.sl_username || 'Breeder'},</p>
+                            <p>Great news! <strong>${data.animalName}</strong> has reached optimal breeding conditions!</p>
+                            <div style="background: #f3e5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                                <h3>Breeding Stats:</h3>
+                                <ul>
+                                    <li>Heat: <strong>${data.heatPercent}%</strong> ✅</li>
+                                    <li>Happiness: <strong>${data.happinessPercent}%</strong> ✅</li>
+                                    <li>Hunger: <strong>${data.hungerPercent}%</strong> ✅</li>
+                                </ul>
+                            </div>
+                            <p>Your animal is now ready for breeding! Find a suitable mate and create the next generation.</p>
+                            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                                <h3>Animal Location:</h3>
+                                <p><a href="${slUrl}" style="color: #2196F3;">Visit ${data.animalName} in Second Life</a></p>
+                            </div>
+                            <p>Happy breeding!</p>
+                            <p>The Farmheart Team</p>
+                        </div>
+                    `
+                }
+            };
+
+            const emailTemplate = emailTemplates[type];
+            if (!emailTemplate) {
+                logger.warn('No email template for notification type:', type);
+                return;
+            }
+
+            // Send email using EmailService
+            await EmailService.sendNotificationEmail(
+                user.email,
+                emailTemplate.subject,
+                emailTemplate.html
+            );
+
+            logger.info('Email notification sent successfully', {
+                userId,
+                animalId,
+                type,
+                email: user.email
+            });
+
+        } catch (error) {
+            logger.error('Error sending email notification:', error);
+        }
+    }
+
+    // Get user notification preferences
+    static async getUserNotificationPreferences(userId) {
+        try {
+            const result = await pool.query(
+                'SELECT in_app_enabled, email_enabled FROM user_notification_preferences WHERE user_id = $1',
+                [userId]
+            );
+
+            if (result.rows.length === 0) {
+                // Create default preferences if they don't exist
+                await pool.query(
+                    'INSERT INTO user_notification_preferences (user_id, in_app_enabled, email_enabled) VALUES ($1, $2, $3)',
+                    [userId, true, false]
+                );
+                return { inAppEnabled: true, emailEnabled: false };
+            }
+
+            const prefs = result.rows[0];
+            return {
+                inAppEnabled: prefs.in_app_enabled,
+                emailEnabled: prefs.email_enabled
+            };
+        } catch (error) {
+            logger.error('Error getting user notification preferences:', error);
+            // Return defaults on error
+            return { inAppEnabled: true, emailEnabled: false };
+        }
+    }
+
+    // Update user notification preferences
+    static async updateUserNotificationPreferences(userId, preferences) {
+        try {
+            const { inAppEnabled, emailEnabled } = preferences;
+
+            const result = await pool.query(
+                `INSERT INTO user_notification_preferences (user_id, in_app_enabled, email_enabled, updated_at)
+                 VALUES ($1, $2, $3, NOW())
+                 ON CONFLICT (user_id) 
+                 DO UPDATE SET 
+                     in_app_enabled = EXCLUDED.in_app_enabled,
+                     email_enabled = EXCLUDED.email_enabled,
+                     updated_at = NOW()
+                 RETURNING *`,
+                [userId, inAppEnabled, emailEnabled]
+            );
+
+            return result.rows[0];
+        } catch (error) {
+            logger.error('Error updating user notification preferences:', error);
+            throw error;
+        }
+    }
+
+    // Keep all existing methods unchanged...
+    static async checkForDuplicateNotification(userId, animalId, notificationType) {
+        try {
+            const result = await pool.query(
+                `SELECT id FROM notifications 
+                 WHERE user_id = $1 
+                   AND animal_id = $2 
+                   AND title LIKE '%' || $3 || '%'
+                   AND created_at > NOW() - INTERVAL '1 hour'
+                   AND is_dismissed = false`,
+                [userId, animalId, notificationType.replace('animal_', '').replace('_', ' ')]
+            );
+
+            return result.rows.length > 0;
+        } catch (error) {
+            logger.error('Error checking for duplicate notification:', error);
+            return false;
+        }
+    }
+
     static async sendRealTimeNotification(userId, notification) {
         try {
-            // Get the global Socket.IO instance
             const io = global.io;
             
             if (!io) {
@@ -358,7 +511,6 @@ class NotificationService {
                 return;
             }
 
-            // Format notification for frontend
             const formattedNotification = {
                 id: notification.id,
                 title: notification.title,
@@ -374,41 +526,28 @@ class NotificationService {
                 metadata: notification.metadata
             };
 
-            console.log(`🔔 Sending real-time notification to user_${userId}:`, {
-                title: formattedNotification.title,
-                severity: formattedNotification.severity,
-                socketRoom: `user_${userId}`
-            });
-
-            // Send to specific user's room
             io.to(`user_${userId}`).emit('new_notification', formattedNotification);
             
-            // Also send updated stats
             try {
                 const stats = await NotificationService.getNotificationStats(userId);
                 io.to(`user_${userId}`).emit('notification_stats', stats);
-                console.log(`📊 Sent updated stats to user ${userId}:`, stats);
             } catch (statsError) {
                 console.error("Error getting/sending stats:", statsError);
             }
             
-            console.log(`✅ Real-time notification sent successfully to user ${userId}`);
             logger.info('Real-time notification sent', {
                 userId,
                 notificationId: notification.id,
                 title: notification.title,
-                severity: notification.severity,
-                socketRoom: `user_${userId}`
+                severity: notification.severity
             });
 
         } catch (error) {
             logger.error('Error sending real-time notification:', error);
-            console.error("❌ Real-time notification error:", error);
-            throw error; // Re-throw to handle in calling function
+            throw error;
         }
     }
 
-    // Get previous animal stats for comparison
     static async getPreviousAnimalStats(animalId) {
         try {
             const result = await pool.query(
@@ -426,7 +565,6 @@ class NotificationService {
         }
     }
 
-    // Record current animal stats for future comparison
     static async recordAnimalStats(animalId, stats, animalStatus = 'alive') {
         try {
             await pool.query(
@@ -437,7 +575,6 @@ class NotificationService {
                  stats.heatPercent, stats.isOperable, stats.isBreedable, animalStatus]
             );
         } catch (error) {
-            // Try without animal_status column if it doesn't exist yet
             try {
                 await pool.query(
                     `INSERT INTO animal_stat_history 
@@ -452,9 +589,7 @@ class NotificationService {
         }
     }
 
-    // Get animal by ID with proper error handling
     static async getAnimalById(animalId) {
-
         try {
             const result = await pool.query(
                 `SELECT a.*, u.id as owner_id, ab.name as breed_name
@@ -472,7 +607,6 @@ class NotificationService {
         }
     }
 
-    // Helper method to replace template variables
     static replaceTemplateVariables(template, data) {
         let result = template;
         for (const [key, value] of Object.entries(data)) {
@@ -482,7 +616,6 @@ class NotificationService {
         return result;
     }
 
-    // Get user notifications with improved pagination
     static async getUserNotifications(userId, options = {}) {
         try {
             const { 
@@ -491,8 +624,6 @@ class NotificationService {
                 unreadOnly = false, 
                 category = null 
             } = options;
-
-            console.log('getUserNotifications called with:', { userId, limit, offset, unreadOnly, category });
 
             let whereClause = 'WHERE user_id = $1 AND is_dismissed = false';
             let params = [userId];
@@ -508,12 +639,10 @@ class NotificationService {
                 params.push(category);
             }
 
-            // Get total count
             const countQuery = `SELECT COUNT(*) FROM notifications ${whereClause}`;
             const countResult = await pool.query(countQuery, params);
             const totalCount = parseInt(countResult.rows[0].count);
 
-            // Get notifications
             paramCount++;
             const limitParam = paramCount;
             paramCount++;
@@ -548,12 +677,9 @@ class NotificationService {
                 metadata: row.metadata
             }));
 
-            // Get unread count
             const unreadQuery = `SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_dismissed = false AND is_read = false`;
             const unreadResult = await pool.query(unreadQuery, [userId]);
             const unreadCount = parseInt(unreadResult.rows[0].count);
-
-            console.log(`Found ${notifications.length} notifications for user ${userId}, total: ${totalCount}, unread: ${unreadCount}`);
 
             return {
                 notifications,
@@ -573,7 +699,6 @@ class NotificationService {
         }
     }
 
-    // Mark notification as read
     static async markAsRead(notificationId, userId) {
         try {
             const result = await pool.query(
@@ -591,7 +716,6 @@ class NotificationService {
         }
     }
 
-    // Mark notification as dismissed
     static async markAsDismissed(notificationId, userId) {
         try {
             const result = await pool.query(
@@ -609,7 +733,6 @@ class NotificationService {
         }
     }
 
-    // Mark all notifications as read
     static async markAllAsRead(userId, category) {
         try {
             let result;
@@ -637,9 +760,8 @@ class NotificationService {
             logger.error('Error marking all notifications as read:', error);
             throw error;
         }
-    }    
+    }
 
-    // Get notification statistics
     static async getNotificationStats(userId) {
         try {
             const result = await pool.query(
@@ -671,14 +793,12 @@ class NotificationService {
         }
     }
 
-    // Bulk mark as read
     static async bulkMarkAsRead(userId, notificationIds) {
         try {
             if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
                 return 0;
             }
 
-            // Convert to integers and filter out invalid IDs
             const validIds = notificationIds
                 .map(id => parseInt(id))
                 .filter(id => !isNaN(id) && id > 0);
@@ -687,7 +807,7 @@ class NotificationService {
                 return 0;
             }
 
-            const placeholders = validIds.map((_, index) => `$${index + 2}`).join(', ');
+            const placeholders = validIds.map((_, index) => `${index + 2}`).join(', ');
             const query = `
                 UPDATE notifications 
                 SET is_read = true, read_at = NOW()
@@ -698,7 +818,6 @@ class NotificationService {
             const result = await pool.query(query, [userId, ...validIds]);
             const updatedCount = result.rows.length;
 
-            // Send real-time update for stats
             if (updatedCount > 0) {
                 try {
                     const stats = await NotificationService.getNotificationStats(userId);
@@ -718,14 +837,12 @@ class NotificationService {
         }
     }
 
-    // Bulk dismiss
     static async bulkDismiss(userId, notificationIds) {
         try {
             if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
                 return 0;
             }
 
-            // Convert to integers and filter out invalid IDs
             const validIds = notificationIds
                 .map(id => parseInt(id))
                 .filter(id => !isNaN(id) && id > 0);
@@ -734,7 +851,7 @@ class NotificationService {
                 return 0;
             }
 
-            const placeholders = validIds.map((_, index) => `$${index + 2}`).join(', ');
+            const placeholders = validIds.map((_, index) => `${index + 2}`).join(', ');
             const query = `
                 UPDATE notifications 
                 SET is_dismissed = true, dismissed_at = NOW()
@@ -745,7 +862,6 @@ class NotificationService {
             const result = await pool.query(query, [userId, ...validIds]);
             const updatedCount = result.rows.length;
 
-            // Send real-time update for stats
             if (updatedCount > 0) {
                 try {
                     const stats = await NotificationService.getNotificationStats(userId);

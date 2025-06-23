@@ -1,13 +1,109 @@
-// controllers/notificationController.js
 const NotificationService = require('../services/notificationService');
+const EmailService = require('../services/emailService');
 const logger = require('../utils/logger');
 
 class NotificationController {
 
-    // Get user's notifications with pagination
+    // Get user's notification preferences
+    static async getNotificationPreferences(req, res, next) {
+        try {
+            const { userId } = req.user;
+
+            const preferences = await NotificationService.getUserNotificationPreferences(userId);
+
+            res.json({
+                success: true,
+                data: preferences
+            });
+
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    // Update user's notification preferences
+    static async updateNotificationPreferences(req, res, next) {
+        try {
+            const { userId } = req.user;
+            const { inAppEnabled, emailEnabled } = req.body;
+
+            // Validate input
+            if (typeof inAppEnabled !== 'boolean' || typeof emailEnabled !== 'boolean') {
+                return res.status(400).json({
+                    success: false,
+                    error: 'inAppEnabled and emailEnabled must be boolean values'
+                });
+            }
+
+            const updatedPreferences = await NotificationService.updateUserNotificationPreferences(
+                userId,
+                { inAppEnabled, emailEnabled }
+            );
+
+            res.json({
+                success: true,
+                message: 'Notification preferences updated successfully',
+                data: {
+                    inAppEnabled: updatedPreferences.in_app_enabled,
+                    emailEnabled: updatedPreferences.email_enabled
+                }
+            });
+
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    // Send test email notification
+    static async sendTestEmail(req, res, next) {
+        try {
+            const { userId } = req.user;
+            
+            // Get user email
+            const { pool } = require('../config/database');
+            const userResult = await pool.query(
+                'SELECT email, display_name FROM users WHERE id = $1',
+                [userId]
+            );
+
+            if (userResult.rows.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'User not found'
+                });
+            }
+
+            const user = userResult.rows[0];
+            if (!user.email) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'No email address found for this user'
+                });
+            }
+
+            await EmailService.sendTestEmail(user.email, {
+                userId: userId,
+                displayName: user.display_name,
+                timestamp: new Date().toISOString()
+            });
+
+            res.json({
+                success: true,
+                message: 'Test email sent successfully',
+                data: {
+                    email: user.email
+                }
+            });
+
+        } catch (error) {
+            console.error('Error sending test email:', error);
+            next(error);
+        }
+    }
+
+    // All existing methods remain the same...
     static async getNotifications(req, res, next) {
         try {
-            // Validate that user exists in request
             if (!req.user || !req.user.userId) {
                 return res.status(401).json({
                     success: false,
@@ -23,7 +119,6 @@ class NotificationController {
                 category = null
             } = req.query;
 
-            // Validate parameters
             const limitNum = parseInt(limit);
             const offsetNum = parseInt(offset);
             const unreadOnlyBool = unreadOnly === 'true';
@@ -41,8 +136,6 @@ class NotificationController {
                     error: 'Invalid offset parameter (must be >= 0)'
                 });
             }
-
-            //console.log('Getting notifications for user:', userId, 'limit:', limitNum, 'offset:', offsetNum, 'unreadOnly:', unreadOnlyBool, 'category:', category);
 
             const result = await NotificationService.getUserNotifications(userId, {
                 limit: limitNum,
@@ -71,32 +164,24 @@ class NotificationController {
         }
     }
 
-    // Get notification statistics
     static async getNotificationStats(req, res, next) {
         try {
             const { userId } = req.user;
-
             const stats = await NotificationService.getNotificationStats(userId);
-
             res.json({
                 success: true,
                 data: stats
             });
-
         } catch (error) {
             next(error);
         }
     }
 
-    // Mark notification as read
     static async markAsRead(req, res, next) {
         try {
             const { notificationId } = req.params;
             const { userId } = req.user;
-            const notification = await NotificationService.markAsRead(
-                notificationId,
-                userId
-            );
+            const notification = await NotificationService.markAsRead(notificationId, userId);
 
             if (!notification) {
                 return res.status(404).json({
@@ -105,7 +190,6 @@ class NotificationController {
                 });
             }
 
-            // Always return success if we got a notification back
             res.json({
                 success: true,
                 message: 'Notification marked as read',
@@ -120,12 +204,11 @@ class NotificationController {
             });
 
         } catch (error) {
-            console.error('-----------Controller error:', error);
+            console.error('Controller error:', error);
             next(error);
         }
     }
 
-    // Mark notification as dismissed
     static async markAsDismissed(req, res, next) {
         try {
             const { notificationId } = req.params;
@@ -154,13 +237,10 @@ class NotificationController {
         }
     }
 
-    // Mark all notifications as read
     static async markAllAsRead(req, res, next) {
         try {
             const { userId } = req.user;
-            const { category } = req.query; // Get category from query params, not body
-    
-            console.log("Mark all as read request:", { userId, category });
+            const { category } = req.query;
     
             const updatedCount = await NotificationService.markAllAsRead(userId, category);
     
@@ -176,15 +256,11 @@ class NotificationController {
         }
     }
 
-    // Bulk mark as read
     static async bulkMarkAsRead(req, res, next) {
         try {
             const { userId } = req.user;
             const { notificationIds } = req.body;
 
-            console.log(notificationIds);
-
-            // Validate input
             if (!Array.isArray(notificationIds)) {
                 return res.status(400).json({
                     success: false,
@@ -224,13 +300,11 @@ class NotificationController {
         }
     }
 
-    // Bulk dismiss
     static async bulkDismiss(req, res, next) {
         try {
             const { userId } = req.user;
             const { notificationIds } = req.body;
 
-            // Validate input
             if (!Array.isArray(notificationIds)) {
                 return res.status(400).json({
                     success: false,
@@ -270,14 +344,12 @@ class NotificationController {
         }
     }
 
-    // Get notifications by animal
     static async getNotificationsByAnimal(req, res, next) {
         try {
             const { userId } = req.user;
             const { animalId } = req.params;
             const { limit = 10 } = req.query;
 
-            // Verify animal ownership
             const { pool } = require('../config/database');
             const ownershipResult = await pool.query(
                 'SELECT id FROM animals WHERE id = $1 AND owner_id = $2',
@@ -322,13 +394,11 @@ class NotificationController {
         }
     }
 
-    // Create a test notification (for development/testing)
     static async createTestNotification(req, res, next) {
         try {
             const { userId } = req.user;
             const { type, animalId, testData } = req.body;
 
-            // Only allow in development environment
             if (process.env.NODE_ENV === 'production') {
                 return res.status(403).json({
                     success: false,
@@ -336,7 +406,7 @@ class NotificationController {
                 });
             }
 
-            const notification = await NotificationService.createNotification(
+            const notification = await NotificationService.createInAppNotification(
                 userId,
                 animalId,
                 {
