@@ -1,5 +1,6 @@
 const AuthService = require('../services/authService');
 const VerificationService = require('../services/verificationService');
+const NotificationPreferenceService = require("../services/notificationPreferenceService");
 const logger = require('../utils/logger');
 const User = require('../models/user');
 
@@ -44,6 +45,8 @@ class AuthController {
             
             // Create user (unverified)
             const user = await User.create({ slUsername, password, email });
+
+            await NotificationPreferenceService.createDefaultPreferences(user.id);
             
             // Generate verification code in Redis
             const verification = await VerificationService.generateVerificationCode(slUsername, email)
