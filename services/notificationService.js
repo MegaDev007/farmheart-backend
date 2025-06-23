@@ -1,8 +1,8 @@
-// services/notificationService.js
+// services/notificationService.js - CORRECTED VERSION
 
 const { pool } = require('../config/database');
 const logger = require('../utils/logger');
-const EmailService = require('./emailService'); // We'll create this
+const EmailService = require('./emailService'); // Make sure this exists
 
 class NotificationService {
 
@@ -306,14 +306,14 @@ class NotificationService {
         }
     }
 
-    // New method to send email notifications
+    // FIXED: Email notification method using modern EmailService
     static async sendEmailNotification(userId, animalId, notificationData, animal) {
         try {
             const { type, severity, data } = notificationData;
             
-            // Get user email
+            // Get user email and display name
             const userResult = await pool.query(
-                'SELECT email, sl_username FROM users WHERE id = $1',
+                'SELECT email, sl_username, sl_username FROM users WHERE id = $1',
                 [userId]
             );
 
@@ -328,101 +328,68 @@ class NotificationService {
                 return;
             }
 
-            // Create SL URL for the animal location
-            const slUrl = data.location ? 
-                `http://maps.secondlife.com/secondlife/${encodeURIComponent(data.location)}` : 
-                'Location unavailable';
-
-            // Email templates for specific notification types
-            const emailTemplates = {
-                'animal_became_pet': {
-                    subject: `🎉 ${data.animalName} became a pet!`,
-                    html: `
-                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                            <h2 style="color: #4CAF50;">🎉 Congratulations!</h2>
-                            <p>Dear ${user.sl_username || 'Breeder'},</p>
-                            <p><strong>${data.animalName}</strong> has completed its breeding cycle at <strong>${data.age} days old</strong> and is now a beloved pet!</p>
-                            <p>🎊 <em>No more feeding or care required - just enjoy riding and companionship!</em></p>
-                            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                                <h3>Animal Location:</h3>
-                                <p><a href="${slUrl}" style="color: #2196F3;">Visit ${data.animalName} in Second Life</a></p>
-                            </div>
-                            <p>Happy trails!</p>
-                            <p>The Farmheart Team</p>
-                        </div>
-                    `
-                },
-                'animal_inoperable': {
-                    subject: `🚨 URGENT: ${data.animalName} needs immediate care!`,
-                    html: `
-                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                            <h2 style="color: #f44336;">🚨 CRITICAL ALERT</h2>
-                            <p>Dear ${user.sl_username || 'Breeder'},</p>
-                            <p><strong>${data.animalName}</strong> has become inoperable due to neglect and needs immediate attention!</p>
-                            <div style="background: #ffebee; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f44336;">
-                                <h3>Current Status:</h3>
-                                <ul>
-                                    <li>Hunger: <strong>${data.hungerPercent}%</strong></li>
-                                    <li>Happiness: <strong>${data.happinessPercent}%</strong></li>
-                                    <li>Heat: <strong>${data.heatPercent}%</strong></li>
-                                </ul>
-                            </div>
-                            <p><strong>Action Required:</strong> Feed and care for your animal immediately to restore functionality!</p>
-                            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                                <h3>Animal Location:</h3>
-                                <p><a href="${slUrl}" style="color: #2196F3;">Visit ${data.animalName} in Second Life</a></p>
-                            </div>
-                            <p>Please act quickly to restore your animal's health.</p>
-                            <p>The Farmheart Team</p>
-                        </div>
-                    `
-                },
-                'breeding_ready': {
-                    subject: `💕 ${data.animalName} is ready to breed!`,
-                    html: `
-                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                            <h2 style="color: #9C27B0;">💕 Breeding Ready!</h2>
-                            <p>Dear ${user.sl_username || 'Breeder'},</p>
-                            <p>Great news! <strong>${data.animalName}</strong> has reached optimal breeding conditions!</p>
-                            <div style="background: #f3e5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                                <h3>Breeding Stats:</h3>
-                                <ul>
-                                    <li>Heat: <strong>${data.heatPercent}%</strong> ✅</li>
-                                    <li>Happiness: <strong>${data.happinessPercent}%</strong> ✅</li>
-                                    <li>Hunger: <strong>${data.hungerPercent}%</strong> ✅</li>
-                                </ul>
-                            </div>
-                            <p>Your animal is now ready for breeding! Find a suitable mate and create the next generation.</p>
-                            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                                <h3>Animal Location:</h3>
-                                <p><a href="${slUrl}" style="color: #2196F3;">Visit ${data.animalName} in Second Life</a></p>
-                            </div>
-                            <p>Happy breeding!</p>
-                            <p>The Farmheart Team</p>
-                        </div>
-                    `
+            // Use the enhanced EmailService with modern templates
+            try {
+                switch (type) {
+                    case 'animal_became_pet':
+                        await EmailService.sendPetNotificationEmail(
+                            user.email,
+                            data.animalName,
+                            data.age,
+                            data.location,
+                            user.sl_username || user.sl_username
+                        );
+                        break;
+                        
+                    case 'animal_inoperable':
+                        await EmailService.sendInoperableNotificationEmail(
+                            user.email,
+                            data.animalName,
+                            {
+                                hungerPercent: data.hungerPercent,
+                                happinessPercent: data.happinessPercent,
+                                heatPercent: data.heatPercent
+                            },
+                            data.location,
+                            user.sl_username || user.sl_username
+                        );
+                        break;
+                        
+                    case 'breeding_ready':
+                        await EmailService.sendBreedingReadyEmail(
+                            user.email,
+                            data.animalName,
+                            {
+                                heatPercent: data.heatPercent,
+                                happinessPercent: data.happinessPercent,
+                                hungerPercent: data.hungerPercent
+                            },
+                            data.location,
+                            user.sl_username || user.sl_username
+                        );
+                        break;
+                        
+                    default:
+                        logger.warn('Unknown email notification type:', type);
+                        return;
                 }
-            };
 
-            const emailTemplate = emailTemplates[type];
-            if (!emailTemplate) {
-                logger.warn('No email template for notification type:', type);
-                return;
+                logger.info('Email notification sent successfully', {
+                    userId,
+                    animalId,
+                    type,
+                    email: user.email
+                });
+
+            } catch (emailError) {
+                logger.error('Error sending specific email type:', {
+                    error: emailError.message,
+                    userId,
+                    animalId,
+                    type,
+                    email: user.email
+                });
             }
-
-            // Send email using EmailService
-            await EmailService.sendNotificationEmail(
-                user.email,
-                emailTemplate.subject,
-                emailTemplate.html
-            );
-
-            logger.info('Email notification sent successfully', {
-                userId,
-                animalId,
-                type,
-                email: user.email
-            });
 
         } catch (error) {
             logger.error('Error sending email notification:', error);
@@ -482,7 +449,99 @@ class NotificationService {
         }
     }
 
-    // Keep all existing methods unchanged...
+    // FIXED: Bulk operations placeholders syntax
+    static async bulkMarkAsRead(userId, notificationIds) {
+        try {
+            if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
+                return 0;
+            }
+
+            const validIds = notificationIds
+                .map(id => parseInt(id))
+                .filter(id => !isNaN(id) && id > 0);
+
+            if (validIds.length === 0) {
+                return 0;
+            }
+
+            // FIXED: Proper placeholder syntax
+            const placeholders = validIds.map((_, index) => `$${index + 2}`).join(', ');
+            const query = `
+                UPDATE notifications 
+                SET is_read = true, read_at = NOW()
+                WHERE user_id = $1 AND id IN (${placeholders}) AND is_read = false AND is_dismissed = false
+                RETURNING id
+            `;
+
+            const result = await pool.query(query, [userId, ...validIds]);
+            const updatedCount = result.rows.length;
+
+            if (updatedCount > 0) {
+                try {
+                    const stats = await NotificationService.getNotificationStats(userId);
+                    const io = global.io;
+                    if (io) {
+                        io.to(`user_${userId}`).emit('notification_stats', stats);
+                    }
+                } catch (realtimeError) {
+                    console.log('Could not send real-time stats update:', realtimeError.message);
+                }
+            }
+
+            return updatedCount;
+        } catch (error) {
+            logger.error('Error bulk marking notifications as read:', error);
+            throw error;
+        }
+    }
+
+    // FIXED: Bulk dismiss placeholders syntax
+    static async bulkDismiss(userId, notificationIds) {
+        try {
+            if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
+                return 0;
+            }
+
+            const validIds = notificationIds
+                .map(id => parseInt(id))
+                .filter(id => !isNaN(id) && id > 0);
+
+            if (validIds.length === 0) {
+                return 0;
+            }
+
+            // FIXED: Proper placeholder syntax
+            const placeholders = validIds.map((_, index) => `$${index + 2}`).join(', ');
+            const query = `
+                UPDATE notifications 
+                SET is_dismissed = true, dismissed_at = NOW()
+                WHERE user_id = $1 AND id IN (${placeholders}) AND is_dismissed = false
+                RETURNING id
+            `;
+
+            const result = await pool.query(query, [userId, ...validIds]);
+            const updatedCount = result.rows.length;
+
+            if (updatedCount > 0) {
+                try {
+                    const stats = await NotificationService.getNotificationStats(userId);
+                    const io = global.io;
+                    if (io) {
+                        io.to(`user_${userId}`).emit('notification_stats', stats);
+                    }
+                } catch (realtimeError) {
+                    console.log('Could not send real-time stats update:', realtimeError.message);
+                }
+            }
+
+            return updatedCount;
+        } catch (error) {
+            logger.error('Error bulk dismissing notifications:', error);
+            throw error;
+        }
+    }
+
+    // All other existing methods remain the same...
     static async checkForDuplicateNotification(userId, animalId, notificationType) {
         try {
             const result = await pool.query(
@@ -790,94 +849,6 @@ class NotificationService {
                 todayCount: 0,
                 criticalCount: 0
             };
-        }
-    }
-
-    static async bulkMarkAsRead(userId, notificationIds) {
-        try {
-            if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
-                return 0;
-            }
-
-            const validIds = notificationIds
-                .map(id => parseInt(id))
-                .filter(id => !isNaN(id) && id > 0);
-
-            if (validIds.length === 0) {
-                return 0;
-            }
-
-            const placeholders = validIds.map((_, index) => `${index + 2}`).join(', ');
-            const query = `
-                UPDATE notifications 
-                SET is_read = true, read_at = NOW()
-                WHERE user_id = $1 AND id IN (${placeholders}) AND is_read = false AND is_dismissed = false
-                RETURNING id
-            `;
-
-            const result = await pool.query(query, [userId, ...validIds]);
-            const updatedCount = result.rows.length;
-
-            if (updatedCount > 0) {
-                try {
-                    const stats = await NotificationService.getNotificationStats(userId);
-                    const io = global.io;
-                    if (io) {
-                        io.to(`user_${userId}`).emit('notification_stats', stats);
-                    }
-                } catch (realtimeError) {
-                    console.log('Could not send real-time stats update:', realtimeError.message);
-                }
-            }
-
-            return updatedCount;
-        } catch (error) {
-            logger.error('Error bulk marking notifications as read:', error);
-            throw error;
-        }
-    }
-
-    static async bulkDismiss(userId, notificationIds) {
-        try {
-            if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
-                return 0;
-            }
-
-            const validIds = notificationIds
-                .map(id => parseInt(id))
-                .filter(id => !isNaN(id) && id > 0);
-
-            if (validIds.length === 0) {
-                return 0;
-            }
-
-            const placeholders = validIds.map((_, index) => `${index + 2}`).join(', ');
-            const query = `
-                UPDATE notifications 
-                SET is_dismissed = true, dismissed_at = NOW()
-                WHERE user_id = $1 AND id IN (${placeholders}) AND is_dismissed = false
-                RETURNING id
-            `;
-
-            const result = await pool.query(query, [userId, ...validIds]);
-            const updatedCount = result.rows.length;
-
-            if (updatedCount > 0) {
-                try {
-                    const stats = await NotificationService.getNotificationStats(userId);
-                    const io = global.io;
-                    if (io) {
-                        io.to(`user_${userId}`).emit('notification_stats', stats);
-                    }
-                } catch (realtimeError) {
-                    console.log('Could not send real-time stats update:', realtimeError.message);
-                }
-            }
-
-            return updatedCount;
-        } catch (error) {
-            logger.error('Error bulk dismissing notifications:', error);
-            throw error;
         }
     }
 }
