@@ -98,7 +98,8 @@ class AnimalService {
                 happinessPercent: animal.happinessPercent,
                 heatPercent: animal.heatPercent,
                 isOperable: animal.isOperable,
-                isBreedable: animal.isBreedable
+                isBreedable: animal.isBreedable,
+                position: animal.slPosition
             };
 
             // Update the animal stats
@@ -110,7 +111,8 @@ class AnimalService {
                 happinessPercent: animal.happinessPercent,
                 heatPercent: animal.heatPercent,
                 isOperable: animal.isOperable,
-                isBreedable: animal.isBreedable
+                isBreedable: animal.isBreedable,
+                position: animal.slPosition
             };
 
             // Create notifications based on status changes

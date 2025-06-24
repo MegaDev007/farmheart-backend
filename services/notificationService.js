@@ -6,195 +6,230 @@ const EmailService = require('./emailService'); // Make sure this exists
 
 class NotificationService {
 
-    // Enhanced method to check animal status and notify via both channels
-    static async checkAnimalStatusAndNotify(animalId, newStats, previousStats = null) {
-        try {
-            const animal = await NotificationService.getAnimalById(animalId);
+    // MISSING METHOD - Generate Second Life URL for teleporting to animal location
+    static generateSLURL(region, coordinates) {
+        if (!region || !coordinates) {
+            return null;
+        }
+
+        const { x, y, z } = coordinates;
+        
+        // Format: secondlife://Region Name/x/y/z
+        const formattedRegion = region.replace(/\s+/g, '%20');
+        return `secondlife://${formattedRegion}/${Math.round(x)}/${Math.round(y)}/${Math.round(z)}`;
+    }
+
+    
+// Fixed portion of NotificationService.js - checkAnimalStatusAndNotify method
+
+static async checkAnimalStatusAndNotify(animalId, newStats, previousStats = null) {
+    try {
+        const animal = await NotificationService.getAnimalById(animalId);
+        
+        if (!animal) {
+            logger.warn('Animal not found for notification check:', animalId);
+            return 0;
+        }
+
+        // Get user notification preferences
+        const preferences = await NotificationService.getUserNotificationPreferences(animal.owner_id);
+
+        // Skip notifications if both are disabled
+        if (!preferences.inAppEnabled && !preferences.emailEnabled) {
+            await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
+            return 0;
+        }
+
+        // Get previous stats if not provided
+        if (!previousStats) {
+            previousStats = await NotificationService.getPreviousAnimalStats(animalId);
+        }
+
+        // Enhanced animal position data for notifications - FIXED STRUCTURE
+        const positionData = {
+            region: animal.sl_region || 'Unknown Region',
+            coordinates: {
+                x: animal.sl_position_x || 128,
+                y: animal.sl_position_y || 128,
+                z: animal.sl_position_z || 22
+            },
+            slUrl: NotificationService.generateSLURL(animal.sl_region || 'Sandbox Island', {
+                x: animal.sl_position_x || 128,
+                y: animal.sl_position_y || 128,
+                z: animal.sl_position_z || 22
+            }),
+            actionUrl: `/animals/${animalId}` // This is the key missing piece!
+        };
+
+        console.log('🔍 Position data for notification:', positionData); // Debug log
+
+        // Don't send notifications for pet animals (except one-time pet notification)
+        if (animal.status === 'pet') {
+            const wasPreviouslyPet = previousStats?.animal_status === 'pet';
             
-            if (!animal) {
-                logger.warn('Animal not found for notification check:', animalId);
-                return 0;
-            }
-
-            // Get user notification preferences
-            const preferences = await NotificationService.getUserNotificationPreferences(animal.owner_id);
-
-            // Skip notifications if both are disabled
-            if (!preferences.inAppEnabled && !preferences.emailEnabled) {
-                await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
-                return 0;
-            }
-
-            // Get previous stats if not provided
-            if (!previousStats) {
-                previousStats = await NotificationService.getPreviousAnimalStats(animalId);
-            }
-
-            // Don't send notifications for pet animals (except one-time pet notification)
-            if (animal.status === 'pet') {
-                const wasPreviouslyPet = previousStats?.animal_status === 'pet';
-                
-                if (!wasPreviouslyPet) {
-                    const petNotification = {
-                        type: 'animal_became_pet',
-                        severity: 'medium',
-                        data: {
-                            animalName: animal.name || 'Unnamed Animal',
-                            age: animal.age_days || 0,
-                            location: animal.region_name || 'Unknown Region'
-                        }
-                    };
-
-                    await NotificationService.sendNotification(
-                        animal.owner_id, 
-                        animalId, 
-                        petNotification, 
-                        preferences,
-                        animal
-                    );
-
-                    await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
-                    return 1;
-                }
-                
-                await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
-                return 0;
-            }
-
-            // Don't send notifications for eden animals
-            if (animal.status === 'eden') {
-                await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
-                return 0;
-            }
-
-            const notificationsToCreate = [];
-
-            // 1. INOPERABLE NOTIFICATIONS
-            const previousOperable = previousStats?.is_operable !== false;
-            
-            if (!newStats.isOperable && previousOperable) {
-                notificationsToCreate.push({
-                    type: 'animal_inoperable',
-                    severity: 'critical',
+            if (!wasPreviouslyPet) {
+                const petNotification = {
+                    type: 'animal_became_pet',
+                    severity: 'medium',
                     data: {
                         animalName: animal.name || 'Unnamed Animal',
-                        hungerPercent: newStats.hungerPercent,
-                        happinessPercent: newStats.happinessPercent,
+                        age: animal.age_days || 0,
+                        ...positionData // Spread the position data
+                    }
+                };
+
+                await NotificationService.sendNotification(
+                    animal.owner_id, 
+                    animalId, 
+                    petNotification, 
+                    preferences,
+                    animal
+                );
+
+                await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
+                return 1;
+            }
+            
+            await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
+            return 0;
+        }
+
+        // Don't send notifications for eden animals
+        if (animal.status === 'eden') {
+            await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
+            return 0;
+        }
+
+        const notificationsToCreate = [];
+
+        // 1. INOPERABLE NOTIFICATIONS
+        const previousOperable = previousStats?.is_operable !== false;
+        
+        if (!newStats.isOperable && previousOperable) {
+            notificationsToCreate.push({
+                type: 'animal_inoperable',
+                severity: 'critical',
+                data: {
+                    animalName: animal.name || 'Unnamed Animal',
+                    hungerPercent: newStats.hungerPercent,
+                    happinessPercent: newStats.happinessPercent,
+                    heatPercent: newStats.heatPercent,
+                    ...positionData // Spread the position data
+                }
+            });
+        }
+
+        // 2. BREEDING READY NOTIFICATIONS
+        if (newStats.isOperable) {
+            const previousBreedable = previousStats?.is_breedable || false;
+            
+            if (newStats.isBreedable && !previousBreedable) {
+                notificationsToCreate.push({
+                    type: 'breeding_ready',
+                    severity: 'medium',
+                    data: {
+                        animalName: animal.name || 'Unnamed Animal',
                         heatPercent: newStats.heatPercent,
-                        location: animal.region_name || 'Unknown Region'
+                        happinessPercent: newStats.happinessPercent,
+                        hungerPercent: newStats.hungerPercent,
+                        ...positionData // Spread the position data
                     }
                 });
             }
+        }
 
-            // 2. BREEDING READY NOTIFICATIONS
-            if (newStats.isOperable) {
-                const previousBreedable = previousStats?.is_breedable || false;
+        // 3. HUNGER NOTIFICATIONS (only for in-app, not email)
+        if (newStats.isOperable && preferences.inAppEnabled) {
+            const hungerThreshold = 75;
+            const hungerCriticalThreshold = 95;
+            const previousHunger = previousStats?.hunger_percent || 0;
+            
+            if (newStats.hungerPercent >= hungerThreshold) {
+                const isHungerIncreasing = !previousStats || newStats.hungerPercent > previousHunger;
                 
-                if (newStats.isBreedable && !previousBreedable) {
+                if (isHungerIncreasing) {
+                    const severity = newStats.hungerPercent >= hungerCriticalThreshold ? 'critical' : 'high';
+                    const notificationType = newStats.hungerPercent >= hungerCriticalThreshold ? 'animal_critical_hunger' : 'animal_hunger';
+                    
                     notificationsToCreate.push({
-                        type: 'breeding_ready',
-                        severity: 'medium',
+                        type: notificationType,
+                        severity,
                         data: {
                             animalName: animal.name || 'Unnamed Animal',
-                            heatPercent: newStats.heatPercent,
-                            happinessPercent: newStats.happinessPercent,
                             hungerPercent: newStats.hungerPercent,
-                            location: animal.region_name || 'Unknown Region'
+                            previousHunger: previousHunger,
+                            threshold: newStats.hungerPercent >= hungerCriticalThreshold ? hungerCriticalThreshold : hungerThreshold,
+                            emailOnly: false,
+                            ...positionData // Spread the position data
                         }
                     });
                 }
             }
+        }
 
-            // 3. HUNGER NOTIFICATIONS (only for in-app, not email)
-            if (newStats.isOperable && preferences.inAppEnabled) {
-                const hungerThreshold = 75;
-                const hungerCriticalThreshold = 95;
-                const previousHunger = previousStats?.hunger_percent || 0;
+        // 4. HAPPINESS NOTIFICATIONS (only for in-app, not email)
+        if (newStats.isOperable && preferences.inAppEnabled) {
+            const happinessThreshold = 25;
+            const happinessCriticalThreshold = 5;
+            const previousHappiness = previousStats?.happiness_percent || 100;
+            
+            if (newStats.happinessPercent <= happinessThreshold) {
+                const isHappinessDecreasing = !previousStats || newStats.happinessPercent < previousHappiness;
                 
-                if (newStats.hungerPercent >= hungerThreshold) {
-                    const isHungerIncreasing = !previousStats || newStats.hungerPercent > previousHunger;
+                if (isHappinessDecreasing) {
+                    const severity = newStats.happinessPercent <= happinessCriticalThreshold ? 'critical' : 'high';
+                    const notificationType = newStats.happinessPercent <= happinessCriticalThreshold ? 'animal_happiness_critical' : 'animal_happiness_low';
                     
-                    if (isHungerIncreasing) {
-                        const severity = newStats.hungerPercent >= hungerCriticalThreshold ? 'critical' : 'high';
-                        const notificationType = newStats.hungerPercent >= hungerCriticalThreshold ? 'animal_critical_hunger' : 'animal_hunger';
-                        
-                        notificationsToCreate.push({
-                            type: notificationType,
-                            severity,
-                            data: {
-                                animalName: animal.name || 'Unnamed Animal',
-                                hungerPercent: newStats.hungerPercent,
-                                previousHunger: previousHunger,
-                                threshold: newStats.hungerPercent >= hungerCriticalThreshold ? hungerCriticalThreshold : hungerThreshold,
-                                emailOnly: false // This is in-app only
-                            }
-                        });
-                    }
+                    notificationsToCreate.push({
+                        type: notificationType,
+                        severity,
+                        data: {
+                            animalName: animal.name || 'Unnamed Animal',
+                            happinessPercent: newStats.happinessPercent,
+                            previousHappiness: previousHappiness,
+                            threshold: newStats.happinessPercent <= happinessCriticalThreshold ? happinessCriticalThreshold : happinessThreshold,
+                            emailOnly: false,
+                            ...positionData // Spread the position data
+                        }
+                    });
                 }
             }
+        }
 
-            // 4. HAPPINESS NOTIFICATIONS (only for in-app, not email)
-            if (newStats.isOperable && preferences.inAppEnabled) {
-                const happinessThreshold = 25;
-                const happinessCriticalThreshold = 5;
-                const previousHappiness = previousStats?.happiness_percent || 100;
-                
-                if (newStats.happinessPercent <= happinessThreshold) {
-                    const isHappinessDecreasing = !previousStats || newStats.happinessPercent < previousHappiness;
-                    
-                    if (isHappinessDecreasing) {
-                        const severity = newStats.happinessPercent <= happinessCriticalThreshold ? 'critical' : 'high';
-                        const notificationType = newStats.happinessPercent <= happinessCriticalThreshold ? 'animal_happiness_critical' : 'animal_happiness_low';
-                        
-                        notificationsToCreate.push({
-                            type: notificationType,
-                            severity,
-                            data: {
-                                animalName: animal.name || 'Unnamed Animal',
-                                happinessPercent: newStats.happinessPercent,
-                                previousHappiness: previousHappiness,
-                                threshold: newStats.happinessPercent <= happinessCriticalThreshold ? happinessCriticalThreshold : happinessThreshold,
-                                emailOnly: false // This is in-app only
-                            }
-                        });
-                    }
-                }
-            }
+        // Send all notifications
+        let createdCount = 0;
+        for (const notification of notificationsToCreate) {
+            try {
+                // Check for spam
+                const isDuplicate = await NotificationService.checkForDuplicateNotification(
+                    animal.owner_id, 
+                    animalId, 
+                    notification.type
+                );
 
-            // Send all notifications
-            let createdCount = 0;
-            for (const notification of notificationsToCreate) {
-                try {
-                    // Check for spam
-                    const isDuplicate = await NotificationService.checkForDuplicateNotification(
+                if (!isDuplicate) {
+                    await NotificationService.sendNotification(
                         animal.owner_id, 
                         animalId, 
-                        notification.type
+                        notification, 
+                        preferences,
+                        animal
                     );
-
-                    if (!isDuplicate) {
-                        await NotificationService.sendNotification(
-                            animal.owner_id, 
-                            animalId, 
-                            notification, 
-                            preferences,
-                            animal
-                        );
-                        createdCount++;
-                    }
-                } catch (error) {
-                    logger.error('Error creating individual notification:', error);
+                    createdCount++;
                 }
+            } catch (error) {
+                logger.error('Error creating individual notification:', error);
             }
-
-            await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
-            return createdCount;
-
-        } catch (error) {
-            logger.error('Error checking animal status for notifications:', error);
-            return 0;
         }
+
+        await NotificationService.recordAnimalStats(animalId, newStats, animal.status);
+        return createdCount;
+
+    } catch (error) {
+        logger.error('Error checking animal status for notifications:', error);
+        return 0;
     }
+}
 
     // New method to send notifications via both channels
     static async sendNotification(userId, animalId, notificationData, preferences, animal) {
@@ -221,90 +256,115 @@ class NotificationService {
         }
     }
 
-    // Create in-app notification (existing logic)
-    static async createInAppNotification(userId, animalId, notificationData) {
-        try {
-            const { type, severity, data } = notificationData;
+// Fixed createInAppNotification method for NotificationService.js
 
-            const templates = {
-                'animal_hunger': {
-                    title: '{animalName} is getting hungry',
-                    body: '{animalName} hunger level has reached {hungerPercent}% (up from {previousHunger}%). Please provide food soon to prevent health issues.',
-                    category: 'animal_care'
-                },
-                'animal_critical_hunger': {
-                    title: '{animalName} is critically hungry!',
-                    body: 'URGENT: {animalName} hunger level is at {hungerPercent}% - immediate feeding required! Your animal will become inoperable if not fed soon.',
-                    category: 'animal_care'
-                },
-                'animal_happiness_low': {
-                    title: '{animalName} is feeling sad',
-                    body: '{animalName} happiness has dropped to {happinessPercent}% (down from {previousHappiness}%). Consider brushing or providing minerals to improve mood.',
-                    category: 'animal_care'
-                },
-                'animal_happiness_critical': {
-                    title: '{animalName} is very unhappy!',
-                    body: 'URGENT: {animalName} happiness is critically low at {happinessPercent}%. Immediate care needed - brush your animal or provide minerals!',
-                    category: 'animal_care'
-                },
-                'breeding_ready': {
-                    title: '{animalName} is ready to breed',
-                    body: 'Great news! {animalName} has reached optimal breeding conditions with {heatPercent}% heat, {happinessPercent}% happiness, and {hungerPercent}% satiation.',
-                    category: 'breeding'
-                },
-                'animal_inoperable': {
-                    title: '{animalName} has become inoperable',
-                    body: 'CRITICAL: {animalName} is no longer functional due to neglect (Hunger: {hungerPercent}%, Happiness: {happinessPercent}%). Feed and care for your animal immediately to restore functionality!',
-                    category: 'animal_care'
-                },
-                'animal_became_pet': {
-                    title: '{animalName} became a pet!',
-                    body: 'Congratulations! {animalName} has completed its breeding cycle at {age} days old and is now a beloved pet. No more feeding or care required - just enjoy riding and companionship!',
-                    category: 'achievement'
-                }
-            };
+static async createInAppNotification(userId, animalId, notificationData) {
+    try {
+        const { type, severity, data } = notificationData;
 
-            const template = templates[type];
-            if (!template) {
-                logger.warn('Unknown notification type:', type);
-                return null;
+        const templates = {
+            'animal_hunger': {
+                title: '{animalName} is getting hungry',
+                body: '{animalName} hunger level has reached {hungerPercent}% (up from {previousHunger}%). Please provide food soon to prevent health issues.',
+                category: 'animal_care'
+            },
+            'animal_critical_hunger': {
+                title: '{animalName} is critically hungry!',
+                body: 'URGENT: {animalName} hunger level is at {hungerPercent}% - immediate feeding required! Your animal will become inoperable if not fed soon.',
+                category: 'animal_care'
+            },
+            'animal_happiness_low': {
+                title: '{animalName} is feeling sad',
+                body: '{animalName} happiness has dropped to {happinessPercent}% (down from {previousHappiness}%). Consider brushing or providing minerals to improve mood.',
+                category: 'animal_care'
+            },
+            'animal_happiness_critical': {
+                title: '{animalName} is very unhappy!',
+                body: 'URGENT: {animalName} happiness is critically low at {happinessPercent}%. Immediate care needed - brush your animal or provide minerals!',
+                category: 'animal_care'
+            },
+            'breeding_ready': {
+                title: '{animalName} is ready to breed',
+                body: 'Great news! {animalName} has reached optimal breeding conditions with {heatPercent}% heat, {happinessPercent}% happiness, and {hungerPercent}% satiation.',
+                category: 'breeding'
+            },
+            'animal_inoperable': {
+                title: '{animalName} has become inoperable',
+                body: 'CRITICAL: {animalName} is no longer functional due to neglect (Hunger: {hungerPercent}%, Happiness: {happinessPercent}%). Feed and care for your animal immediately to restore functionality!',
+                category: 'animal_care'
+            },
+            'animal_became_pet': {
+                title: '{animalName} became a pet!',
+                body: 'Congratulations! {animalName} has completed its breeding cycle at {age} days old and is now a beloved pet. No more feeding or care required - just enjoy riding and companionship!',
+                category: 'achievement'
             }
+        };
 
-            const title = NotificationService.replaceTemplateVariables(template.title, data);
-            const message = NotificationService.replaceTemplateVariables(template.body, data);
-            const category = template.category;
-
-            try {
-                const result = await pool.query(
-                    `INSERT INTO notifications (user_id, animal_id, title, message, severity, category, metadata, created_at)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-                     RETURNING *`,
-                    [userId, animalId, title, message, severity, category, JSON.stringify(data)]
-                );
-
-                const notification = result.rows[0];
-
-                // Send real-time notification
-                try {
-                    await NotificationService.sendRealTimeNotification(userId, notification);
-                } catch (realtimeError) {
-                    logger.warn('Failed to send real-time notification:', realtimeError.message);
-                }
-
-                return notification;
-
-            } catch (dbError) {
-                logger.info('📝 In-app notification would be created (DB table missing):', {
-                    userId, animalId, type, title: title.substring(0, 50) + '...', severity
-                });
-                return { id: Date.now(), title, message, severity };
-            }
-
-        } catch (error) {
-            logger.error('Error creating in-app notification:', error);
+        const template = templates[type];
+        if (!template) {
+            logger.warn('Unknown notification type:', type);
             return null;
         }
+
+        const title = NotificationService.replaceTemplateVariables(template.title, data);
+        const message = NotificationService.replaceTemplateVariables(template.body, data);
+        const category = template.category;
+
+        // FIXED: Enhanced metadata with proper structure
+        const metadata = {
+            // Keep original data
+            animalName: data.animalName,
+            hungerPercent: data.hungerPercent,
+            happinessPercent: data.happinessPercent,
+            heatPercent: data.heatPercent,
+            
+            // Add location data with proper structure
+            region: data.region || 'Unknown Region',
+            coordinates: data.coordinates || { x: 128, y: 128, z: 22 },
+            
+            // Add action URLs
+            actionUrl: data.actionUrl || `/animals/${animalId}`,
+            slUrl: data.slUrl || null,
+            
+            // Legacy support
+            location: data.region || data.location || 'Unknown Region'
+        };
+
+        console.log('💾 Storing notification metadata:', metadata); // Debug log
+
+        try {
+            const result = await pool.query(
+                `INSERT INTO notifications (user_id, animal_id, title, message, severity, category, metadata, created_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+                 RETURNING *`,
+                [userId, animalId, title, message, severity, category, JSON.stringify(metadata)]
+            );
+
+            const notification = result.rows[0];
+            
+            console.log('✅ Notification created with metadata:', notification.metadata); // Debug log
+
+            // Send real-time notification
+            try {
+                await NotificationService.sendRealTimeNotification(userId, notification);
+            } catch (realtimeError) {
+                logger.warn('Failed to send real-time notification:', realtimeError.message);
+            }
+
+            return notification;
+
+        } catch (dbError) {
+            logger.info('📝 In-app notification would be created (DB table missing):', {
+                userId, animalId, type, title: title.substring(0, 50) + '...', severity
+            });
+            return { id: Date.now(), title, message, severity, metadata };
+        }
+
+    } catch (error) {
+        logger.error('Error creating in-app notification:', error);
+        return null;
     }
+}
 
     // FIXED: Email notification method using modern EmailService
     static async sendEmailNotification(userId, animalId, notificationData, animal) {
